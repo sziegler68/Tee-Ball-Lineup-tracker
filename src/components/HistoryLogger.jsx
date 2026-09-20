@@ -2,17 +2,26 @@ import React, { useState } from 'react';
 import { PlusCircle, Trash2, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import { POSITIONS } from '../utils/fairnessEngine';
 
+const EMPTY_INNING = (num) => ({
+  inning: num,
+  firstBat: '',
+  lastBat: '',
+  firstBase: '',
+  pitcher1: '',
+  pitcher2: '',
+});
+
 export default function HistoryLogger({ players, games, setGames }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [gameName, setGameName] = useState(`Game ${games.length + 1}`);
   const [gameDate, setGameDate] = useState(new Date().toISOString().slice(0, 10));
   
-  // 4 innings structure
+  // Start with 4 innings by default, but allow add/remove
   const [innings, setInnings] = useState([
-    { inning: 1, firstBat: '', lastBat: '', firstBase: '', pitcher1: '', pitcher2: '' },
-    { inning: 2, firstBat: '', lastBat: '', firstBase: '', pitcher1: '', pitcher2: '' },
-    { inning: 3, firstBat: '', lastBat: '', firstBase: '', pitcher1: '', pitcher2: '' },
-    { inning: 4, firstBat: '', lastBat: '', firstBase: '', pitcher1: '', pitcher2: '' },
+    EMPTY_INNING(1),
+    EMPTY_INNING(2),
+    EMPTY_INNING(3),
+    EMPTY_INNING(4),
   ]);
 
   const [expandedGameId, setExpandedGameId] = useState(null);
@@ -21,6 +30,15 @@ export default function HistoryLogger({ players, games, setGames }) {
     const updated = [...innings];
     updated[inningIdx] = { ...updated[inningIdx], [field]: value };
     setInnings(updated);
+  };
+
+  const handleAddInning = () => {
+    setInnings([...innings, EMPTY_INNING(innings.length + 1)]);
+  };
+
+  const handleRemoveLastInning = () => {
+    if (innings.length <= 1) return;
+    setInnings(innings.slice(0, -1));
   };
 
   const handleSavePastGame = (e) => {
@@ -35,10 +53,10 @@ export default function HistoryLogger({ players, games, setGames }) {
     setShowAddForm(false);
     setGameName(`Game ${games.length + 2}`);
     setInnings([
-      { inning: 1, firstBat: '', lastBat: '', firstBase: '', pitcher1: '', pitcher2: '' },
-      { inning: 2, firstBat: '', lastBat: '', firstBase: '', pitcher1: '', pitcher2: '' },
-      { inning: 3, firstBat: '', lastBat: '', firstBase: '', pitcher1: '', pitcher2: '' },
-      { inning: 4, firstBat: '', lastBat: '', firstBase: '', pitcher1: '', pitcher2: '' },
+      EMPTY_INNING(1),
+      EMPTY_INNING(2),
+      EMPTY_INNING(3),
+      EMPTY_INNING(4),
     ]);
   };
 
@@ -105,9 +123,9 @@ export default function HistoryLogger({ players, games, setGames }) {
 
           <div class="space-y-4 pt-2">
             {innings.map((inn, idx) => (
-              <div key={inn.inning} class="bg-slate-900/70 border border-slate-700/80 rounded-xl p-3 space-y-2">
+              <div key={idx} class="bg-slate-900/70 border border-slate-700/80 rounded-xl p-3 space-y-2">
                 <span class="text-xs font-bold text-amber-400 uppercase tracking-wider block">
-                  Inning {inn.inning}
+                  Inning {idx + 1}
                 </span>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -133,6 +151,28 @@ export default function HistoryLogger({ players, games, setGames }) {
                 </div>
               </div>
             ))}
+
+            {/* Add / Remove Inning Buttons */}
+            <div class="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleAddInning}
+                class="flex-1 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-emerald-500/20 transition"
+              >
+                <PlusCircle class="w-3.5 h-3.5" />
+                <span>Add Inning</span>
+              </button>
+              {innings.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleRemoveLastInning}
+                  class="py-2 px-4 bg-red-500/10 border border-red-500/30 text-red-400 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-red-500/20 transition"
+                >
+                  <Trash2 class="w-3.5 h-3.5" />
+                  <span>Remove Last</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <button
@@ -160,7 +200,7 @@ export default function HistoryLogger({ players, games, setGames }) {
                     <Calendar class="w-5 h-5 text-emerald-400" />
                     <div>
                       <h3 class="font-bold text-white text-sm">{g.name}</h3>
-                      <span class="text-xs text-slate-400">{g.date}</span>
+                      <span class="text-xs text-slate-400">{g.date} • {(g.innings || []).length} Inning{(g.innings || []).length !== 1 ? 's' : ''}</span>
                     </div>
                   </div>
 
@@ -184,9 +224,9 @@ export default function HistoryLogger({ players, games, setGames }) {
                 {/* Expanded Details */}
                 {isExpanded && (
                   <div class="border-t border-slate-700 bg-slate-900/60 p-4 space-y-3 text-xs">
-                    {(g.innings || []).map((inn) => (
-                      <div key={inn.inning} class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/60 space-y-1.5">
-                        <span class="font-bold text-amber-400">Inning {inn.inning}</span>
+                    {(g.innings || []).map((inn, idx) => (
+                      <div key={idx} class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/60 space-y-1.5">
+                        <span class="font-bold text-amber-400">Inning {idx + 1}</span>
                         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-slate-300">
                           {POSITIONS.map(({ key, label, icon }) => (
                             <div key={key} class="bg-slate-900/80 px-2 py-1 rounded border border-slate-700/40">

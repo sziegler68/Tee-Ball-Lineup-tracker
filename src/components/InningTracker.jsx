@@ -1,24 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, CheckCircle, RotateCcw, Award, AlertCircle } from 'lucide-react';
+import { Sparkles, CheckCircle, RotateCcw, Award, PlusCircle, Trash2, Edit2, Check, X } from 'lucide-react';
 import { POSITIONS, generateInningSuggestions } from '../utils/fairnessEngine';
+
+const EMPTY_INNING = (num) => ({
+  inning: num,
+  firstBat: '',
+  lastBat: '',
+  firstBase: '',
+  pitcher1: '',
+  pitcher2: '',
+});
 
 export default function InningTracker({ players, games, currentGame, setCurrentGame, onFinishGame }) {
   const [activeInningNum, setActiveInningNum] = useState(1);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState('');
   const activePlayers = players.filter((p) => p.active !== false);
 
-  // Initialize active game if null
+  // Initialize active game if null — start with 1 inning, add more as needed
   useEffect(() => {
     if (!currentGame) {
       const newGame = {
         id: 'live_' + Date.now(),
         name: `Game ${games.length + 1}`,
         date: new Date().toISOString().slice(0, 10),
-        innings: [
-          { inning: 1, firstBat: '', lastBat: '', firstBase: '', pitcher1: '', pitcher2: '' },
-          { inning: 2, firstBat: '', lastBat: '', firstBase: '', pitcher1: '', pitcher2: '' },
-          { inning: 3, firstBat: '', lastBat: '', firstBase: '', pitcher1: '', pitcher2: '' },
-          { inning: 4, firstBat: '', lastBat: '', firstBase: '', pitcher1: '', pitcher2: '' },
-        ],
+        innings: [EMPTY_INNING(1)],
       };
       setCurrentGame(newGame);
     }
@@ -26,15 +32,9 @@ export default function InningTracker({ players, games, currentGame, setCurrentG
 
   if (!currentGame) return null;
 
+  const totalInnings = currentGame.innings.length;
   const currentInningIndex = activeInningNum - 1;
-  const currentInningData = currentGame.innings[currentInningIndex] || {
-    inning: activeInningNum,
-    firstBat: '',
-    lastBat: '',
-    firstBase: '',
-    pitcher1: '',
-    pitcher2: '',
-  };
+  const currentInningData = currentGame.innings[currentInningIndex] || EMPTY_INNING(activeInningNum);
 
   // Generate recommendations
   const { suggestions, roleMilestones } = generateInningSuggestions(
@@ -63,15 +63,37 @@ export default function InningTracker({ players, games, currentGame, setCurrentG
 
   const handleClearInning = () => {
     const updatedInnings = [...currentGame.innings];
-    updatedInnings[currentInningIndex] = {
-      inning: activeInningNum,
-      firstBat: '',
-      lastBat: '',
-      firstBase: '',
-      pitcher1: '',
-      pitcher2: '',
-    };
+    updatedInnings[currentInningIndex] = EMPTY_INNING(activeInningNum);
     setCurrentGame({ ...currentGame, innings: updatedInnings });
+  };
+
+  const handleAddInning = () => {
+    const nextNum = totalInnings + 1;
+    const updatedInnings = [...currentGame.innings, EMPTY_INNING(nextNum)];
+    setCurrentGame({ ...currentGame, innings: updatedInnings });
+    setActiveInningNum(nextNum);
+  };
+
+  const handleRemoveLastInning = () => {
+    if (totalInnings <= 1) return;
+    if (!window.confirm(`Remove Inning ${totalInnings}?`)) return;
+    const updatedInnings = currentGame.innings.slice(0, -1);
+    setCurrentGame({ ...currentGame, innings: updatedInnings });
+    if (activeInningNum > updatedInnings.length) {
+      setActiveInningNum(updatedInnings.length);
+    }
+  };
+
+  const handleEditName = () => {
+    setTempName(currentGame.name);
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = () => {
+    if (tempName.trim()) {
+      setCurrentGame({ ...currentGame, name: tempName.trim() });
+    }
+    setIsEditingName(false);
   };
 
   const getPlayerName = (id) => {
@@ -85,28 +107,54 @@ export default function InningTracker({ players, games, currentGame, setCurrentG
       <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-3 shadow-lg">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-lg font-black text-white flex items-center gap-2">
-              {currentGame.name}
-            </h2>
-            <span class="text-xs text-slate-400">{currentGame.date} • 4 Innings</span>
+            {isEditingName ? (
+              <div class="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  class="bg-slate-900 border border-emerald-500 rounded-lg px-3 py-1.5 text-sm text-white font-bold focus:outline-none"
+                  autoFocus
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
+                />
+                <button onClick={handleSaveName} class="p-1.5 bg-emerald-600 rounded-lg text-white">
+                  <Check class="w-4 h-4" />
+                </button>
+                <button onClick={() => setIsEditingName(false)} class="p-1.5 bg-slate-700 rounded-lg text-slate-300">
+                  <X class="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <h2 class="text-lg font-black text-white flex items-center gap-2">
+                {currentGame.name}
+                <button
+                  onClick={handleEditName}
+                  class="text-slate-400 hover:text-white p-1 rounded-md transition"
+                  title="Edit Game Name"
+                >
+                  <Edit2 class="w-3.5 h-3.5" />
+                </button>
+              </h2>
+            )}
+            <span class="text-xs text-slate-400">{currentGame.date} • {totalInnings} Inning{totalInnings !== 1 ? 's' : ''}</span>
           </div>
           <div class="bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold text-emerald-400">
             {activePlayers.length} Players Present
           </div>
         </div>
 
-        {/* 4 Inning Selector */}
-        <div class="grid grid-cols-4 gap-2 pt-1">
-          {[1, 2, 3, 4].map((num) => {
+        {/* Dynamic Inning Selector */}
+        <div class="flex flex-wrap gap-2 pt-1 items-center">
+          {currentGame.innings.map((inn, idx) => {
+            const num = idx + 1;
             const isActive = activeInningNum === num;
-            const innData = currentGame.innings[num - 1];
-            const isFilled = innData && innData.firstBat && innData.lastBat && innData.firstBase && innData.pitcher1 && innData.pitcher2;
+            const isFilled = inn.firstBat && inn.lastBat && inn.firstBase && inn.pitcher1 && inn.pitcher2;
 
             return (
               <button
                 key={num}
                 onClick={() => setActiveInningNum(num)}
-                class={`py-2 px-1 rounded-xl text-xs font-bold transition flex flex-col items-center gap-1 border ${
+                class={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border ${
                   isActive
                     ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-600/30'
                     : isFilled
@@ -114,11 +162,30 @@ export default function InningTracker({ players, games, currentGame, setCurrentG
                     : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:bg-slate-800'
                 }`}
               >
-                <span>Inning {num}</span>
-                {isFilled && <CheckCircle class="w-3.5 h-3.5 text-emerald-400" />}
+                <span>{num}</span>
+                {isFilled && <CheckCircle class="w-3 h-3 text-emerald-400" />}
               </button>
             );
           })}
+
+          {/* Add / Remove Inning Buttons */}
+          <button
+            onClick={handleAddInning}
+            class="py-2 px-2.5 rounded-xl text-xs font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition flex items-center gap-1"
+            title="Add Inning"
+          >
+            <PlusCircle class="w-3.5 h-3.5" />
+            <span class="hidden sm:inline">Add</span>
+          </button>
+          {totalInnings > 1 && (
+            <button
+              onClick={handleRemoveLastInning}
+              class="py-2 px-2.5 rounded-xl text-xs font-bold bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition flex items-center gap-1"
+              title="Remove Last Inning"
+            >
+              <Trash2 class="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
