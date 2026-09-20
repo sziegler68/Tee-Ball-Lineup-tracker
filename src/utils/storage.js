@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'teeball_lineup_tracker_v2';
+const STORAGE_KEY = 'teeball_lineup_tracker_v3';
 
 export const DEFAULT_INITIAL_STATE = {
   teamName: 'My Tee-Ball Team',
@@ -20,24 +20,7 @@ export const DEFAULT_INITIAL_STATE = {
 export function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      // Migrate from v1 if present, otherwise use default
-      const v1 = localStorage.getItem('teeball_lineup_tracker_v1');
-      if (v1) {
-        try {
-          const parsed = JSON.parse(v1);
-          if (parsed && Array.isArray(parsed.players) && parsed.players.length > 0) {
-            return {
-              teamName: parsed.teamName || 'My Tee-Ball Team',
-              players: sortPlayersAlphabetically(parsed.players),
-              games: parsed.games || [],
-              currentGame: parsed.currentGame || null,
-            };
-          }
-        } catch (e) {}
-      }
-      return DEFAULT_INITIAL_STATE;
-    }
+    if (!raw) return DEFAULT_INITIAL_STATE;
     const parsed = JSON.parse(raw);
     return {
       teamName: parsed.teamName || 'My Tee-Ball Team',
