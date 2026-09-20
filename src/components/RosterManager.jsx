@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { UserPlus, Trash2, Edit2, Check, X, UserCheck, UserX } from 'lucide-react';
+import { UserPlus, Trash2, Edit2, Check, X, UserCheck, UserX, Shield, Trophy } from 'lucide-react';
+import { sortPlayersAlphabetically } from '../utils/storage';
 
-export default function RosterManager({ players, setPlayers }) {
+export default function RosterManager({ players, setPlayers, teamName, setTeamName }) {
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editingName, setEditingName] = useState('');
+  const [isEditingTeamName, setIsEditingTeamName] = useState(false);
+  const [tempTeamName, setTempTeamName] = useState(teamName);
 
   const handleAddPlayer = (e) => {
     e.preventDefault();
@@ -14,19 +17,20 @@ export default function RosterManager({ players, setPlayers }) {
       name: newName.trim(),
       active: true,
     };
-    setPlayers([...players, newPlayer]);
+    const updated = sortPlayersAlphabetically([...players, newPlayer]);
+    setPlayers(updated);
     setNewName('');
   };
 
   const handleToggleActive = (id) => {
-    setPlayers(
-      players.map((p) => (p.id === id ? { ...p, active: !p.active } : p))
-    );
+    const updated = players.map((p) => (p.id === id ? { ...p, active: !p.active } : p));
+    setPlayers(sortPlayersAlphabetically(updated));
   };
 
   const handleDeletePlayer = (id) => {
     if (window.confirm('Remove this player from roster?')) {
-      setPlayers(players.filter((p) => p.id !== id));
+      const updated = players.filter((p) => p.id !== id);
+      setPlayers(sortPlayersAlphabetically(updated));
     }
   };
 
@@ -37,27 +41,70 @@ export default function RosterManager({ players, setPlayers }) {
 
   const saveEdit = (id) => {
     if (!editingName.trim()) return;
-    setPlayers(players.map((p) => (p.id === id ? { ...p, name: editingName.trim() } : p)));
+    const updated = players.map((p) => (p.id === id ? { ...p, name: editingName.trim() } : p));
+    setPlayers(sortPlayersAlphabetically(updated));
     setEditingId(null);
   };
 
+  const saveTeamName = () => {
+    if (tempTeamName.trim()) {
+      setTeamName(tempTeamName.trim());
+    }
+    setIsEditingTeamName(false);
+  };
+
   const activeCount = players.filter((p) => p.active !== false).length;
+  const sortedPlayers = sortPlayersAlphabetically(players);
 
   return (
     <div class="max-w-2xl mx-auto p-4 space-y-6">
-      {/* Header & Stats Card */}
-      <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex items-center justify-between shadow-lg">
-        <div>
-          <h2 class="text-lg font-bold text-white flex items-center gap-2">
-            Team Roster
-          </h2>
-          <p class="text-xs text-slate-400 mt-0.5">
-            Mark players active/absent for today's game.
-          </p>
-        </div>
-        <div class="bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-right">
-          <span class="text-xl font-black text-emerald-400">{activeCount}</span>
-          <span class="text-slate-400 text-xs font-semibold"> / {players.length} Active</span>
+      {/* Team Name Card */}
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-lg space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+              <Trophy class="w-4 h-4" />
+            </div>
+            <div>
+              <span class="text-[11px] font-bold text-amber-400 uppercase tracking-wider block">Team Profile</span>
+              {isEditingTeamName ? (
+                <div class="flex items-center gap-2 mt-1">
+                  <input
+                    type="text"
+                    value={tempTeamName}
+                    onChange={(e) => setTempTeamName(e.target.value)}
+                    class="bg-slate-900 border border-emerald-500 rounded-lg px-3 py-1 text-sm text-white font-bold focus:outline-none"
+                    autoFocus
+                  />
+                  <button
+                    onClick={saveTeamName}
+                    class="p-1.5 bg-emerald-600 rounded-lg text-white"
+                  >
+                    <Check class="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <h2 class="text-lg font-black text-white flex items-center gap-2">
+                  {teamName}
+                  <button
+                    onClick={() => {
+                      setTempTeamName(teamName);
+                      setIsEditingTeamName(true);
+                    }}
+                    class="text-slate-400 hover:text-white p-1 rounded-md transition"
+                    title="Edit Team Name"
+                  >
+                    <Edit2 class="w-3.5 h-3.5" />
+                  </button>
+                </h2>
+              )}
+            </div>
+          </div>
+
+          <div class="bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-right">
+            <span class="text-xl font-black text-emerald-400">{activeCount}</span>
+            <span class="text-slate-400 text-xs font-semibold"> / {players.length} Active</span>
+          </div>
         </div>
       </div>
 
@@ -65,28 +112,33 @@ export default function RosterManager({ players, setPlayers }) {
       <form onSubmit={handleAddPlayer} class="flex gap-2">
         <input
           type="text"
-          placeholder="Enter player name..."
+          placeholder="Enter new player name..."
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition"
         />
         <button
           type="submit"
-          class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-3 rounded-xl flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 active:scale-95 transition"
+          class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-3 rounded-xl flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 active:scale-95 transition text-sm"
         >
           <UserPlus class="w-4 h-4" />
           <span>Add</span>
         </button>
       </form>
 
-      {/* Player List */}
+      {/* Player List (Auto Alphabetized) */}
       <div class="bg-slate-800 border border-slate-700 rounded-2xl divide-y divide-slate-700/60 overflow-hidden shadow-lg">
-        {players.length === 0 ? (
+        <div class="p-3 bg-slate-900/60 border-b border-slate-700 text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+          <span>Alphabetized Roster ({sortedPlayers.length})</span>
+          <span class="text-[10px] text-emerald-400 lowercase font-normal">Sorted A to Z</span>
+        </div>
+
+        {sortedPlayers.length === 0 ? (
           <div class="p-8 text-center text-slate-400 text-sm">
             No players added yet. Add your players above!
           </div>
         ) : (
-          players.map((player) => {
+          sortedPlayers.map((player) => {
             const isActive = player.active !== false;
             const isEditing = editingId === player.id;
 
@@ -133,7 +185,7 @@ export default function RosterManager({ players, setPlayers }) {
                       {isActive ? <UserCheck class="w-4 h-4" /> : <UserX class="w-4 h-4" />}
                     </button>
                     <div>
-                      <span class={`font-medium text-sm ${isActive ? 'text-white' : 'text-slate-400 line-through'}`}>
+                      <span class={`font-bold text-sm ${isActive ? 'text-white' : 'text-slate-400 line-through'}`}>
                         {player.name}
                       </span>
                       <span class="block text-[11px] text-slate-400 font-semibold">

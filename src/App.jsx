@@ -5,7 +5,7 @@ import HistoryLogger from './components/HistoryLogger';
 import InningTracker from './components/InningTracker';
 import StatsDashboard from './components/StatsDashboard';
 import BackupModal from './components/BackupModal';
-import { loadState, saveState } from './utils/storage';
+import { loadState, saveState, sortPlayersAlphabetically } from './utils/storage';
 
 export default function App() {
   const [state, setState] = useState(() => loadState());
@@ -18,7 +18,11 @@ export default function App() {
   }, [state]);
 
   const setPlayers = (players) => {
-    setState((prev) => ({ ...prev, players }));
+    setState((prev) => ({ ...prev, players: sortPlayersAlphabetically(players) }));
+  };
+
+  const setTeamName = (teamName) => {
+    setState((prev) => ({ ...prev, teamName }));
   };
 
   const setGames = (games) => {
@@ -56,6 +60,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenBackup={() => setIsBackupOpen(true)}
+        teamName={state.teamName}
       />
 
       <main class="flex-1 pb-12">
@@ -73,6 +78,8 @@ export default function App() {
           <RosterManager
             players={state.players}
             setPlayers={setPlayers}
+            teamName={state.teamName}
+            setTeamName={setTeamName}
           />
         )}
 

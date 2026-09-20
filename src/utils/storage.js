@@ -1,15 +1,17 @@
-const STORAGE_KEY = 'teeball_lineup_tracker_v1';
+const STORAGE_KEY = 'teeball_lineup_tracker_v2';
 
 export const DEFAULT_INITIAL_STATE = {
+  teamName: 'My Tee-Ball Team',
   players: [
-    { id: 'p1', name: 'Alex', active: true },
-    { id: 'p2', name: 'Ben', active: true },
-    { id: 'p3', name: 'Charlie', active: true },
-    { id: 'p4', name: 'Daisy', active: true },
-    { id: 'p5', name: 'Ethan', active: true },
-    { id: 'p6', name: 'Fiona', active: true },
-    { id: 'p7', name: 'George', active: true },
-    { id: 'p8', name: 'Hannah', active: true },
+    { id: 'p1', name: 'Aiden', active: true },
+    { id: 'p2', name: 'Ajax', active: true },
+    { id: 'p3', name: 'Byron', active: true },
+    { id: 'p4', name: 'Camden', active: true },
+    { id: 'p5', name: 'Damien', active: true },
+    { id: 'p6', name: 'Hudson', active: true },
+    { id: 'p7', name: 'Nathan', active: true },
+    { id: 'p8', name: 'SJ', active: true },
+    { id: 'p9', name: 'Ziggy', active: true },
   ],
   games: [],
   currentGame: null,
@@ -18,10 +20,28 @@ export const DEFAULT_INITIAL_STATE = {
 export function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_INITIAL_STATE;
+    if (!raw) {
+      // Migrate from v1 if present, otherwise use default
+      const v1 = localStorage.getItem('teeball_lineup_tracker_v1');
+      if (v1) {
+        try {
+          const parsed = JSON.parse(v1);
+          if (parsed && Array.isArray(parsed.players) && parsed.players.length > 0) {
+            return {
+              teamName: parsed.teamName || 'My Tee-Ball Team',
+              players: sortPlayersAlphabetically(parsed.players),
+              games: parsed.games || [],
+              currentGame: parsed.currentGame || null,
+            };
+          }
+        } catch (e) {}
+      }
+      return DEFAULT_INITIAL_STATE;
+    }
     const parsed = JSON.parse(raw);
     return {
-      players: parsed.players || DEFAULT_INITIAL_STATE.players,
+      teamName: parsed.teamName || 'My Tee-Ball Team',
+      players: sortPlayersAlphabetically(parsed.players || DEFAULT_INITIAL_STATE.players),
       games: parsed.games || [],
       currentGame: parsed.currentGame || null,
     };
@@ -31,9 +51,17 @@ export function loadState() {
   }
 }
 
+export function sortPlayersAlphabetically(playersList) {
+  return [...playersList].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+}
+
 export function saveState(state) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const sortedState = {
+      ...state,
+      players: sortPlayersAlphabetically(state.players || []),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedState));
   } catch (err) {
     console.error('Failed to save state to localStorage:', err);
   }
@@ -61,7 +89,8 @@ export function parseBackupText(jsonText) {
       throw new Error('Invalid backup format: missing players array');
     }
     return {
-      players: parsed.players,
+      teamName: parsed.teamName || 'My Tee-Ball Team',
+      players: sortPlayersAlphabetically(parsed.players),
       games: Array.isArray(parsed.games) ? parsed.games : [],
       currentGame: parsed.currentGame || null,
     };
