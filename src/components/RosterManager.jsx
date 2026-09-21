@@ -1,13 +1,29 @@
 import React, { useState } from 'react';
-import { UserPlus, Trash2, Edit2, Check, X, UserCheck, UserX, Shield, Trophy } from 'lucide-react';
+import { UserPlus, Trash2, Edit2, Check, X, UserCheck, UserX, Trophy, ChevronDown, PlusCircle, Shield } from 'lucide-react';
 import { sortPlayersAlphabetically } from '../utils/storage';
 
-export default function RosterManager({ players, setPlayers, teamName, setTeamName }) {
+export default function RosterManager({
+  players,
+  setPlayers,
+  teamName,
+  setTeamName,
+  teamList,
+  activeTeamId,
+  onSwitchTeam,
+  onAddTeam,
+  onDeleteTeam,
+  onRenameTeam,
+}) {
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editingName, setEditingName] = useState('');
   const [isEditingTeamName, setIsEditingTeamName] = useState(false);
   const [tempTeamName, setTempTeamName] = useState(teamName);
+  const [showTeamDropdown, setShowTeamDropdown] = useState(false);
+  const [showNewTeamInput, setShowNewTeamInput] = useState(false);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [editingTeamId, setEditingTeamId] = useState(null);
+  const [editingTeamNameVal, setEditingTeamNameVal] = useState('');
 
   const handleAddPlayer = (e) => {
     e.preventDefault();
@@ -53,12 +69,176 @@ export default function RosterManager({ players, setPlayers, teamName, setTeamNa
     setIsEditingTeamName(false);
   };
 
+  const handleCreateTeam = () => {
+    if (!newTeamName.trim()) return;
+    onAddTeam(newTeamName.trim());
+    setNewTeamName('');
+    setShowNewTeamInput(false);
+    setShowTeamDropdown(false);
+  };
+
+  const handleDeleteTeamClick = (teamId, e) => {
+    e.stopPropagation();
+    const team = teamList.find((t) => t.id === teamId);
+    if (window.confirm(`Delete team "${team?.teamName}"? This removes all its roster, game history, and stats permanently.`)) {
+      onDeleteTeam(teamId);
+    }
+  };
+
+  const handleSaveTeamRename = (teamId) => {
+    if (editingTeamNameVal.trim()) {
+      onRenameTeam(teamId, editingTeamNameVal.trim());
+    }
+    setEditingTeamId(null);
+  };
+
   const activeCount = players.filter((p) => p.active !== false).length;
   const sortedPlayers = sortPlayersAlphabetically(players);
 
   return (
     <div class="max-w-2xl mx-auto p-4 space-y-6">
-      {/* Team Name Card */}
+      {/* Team Selector Card */}
+      <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-lg overflow-hidden">
+        <div class="p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+                <Shield class="w-4 h-4" />
+              </div>
+              <div>
+                <span class="text-[11px] font-bold text-indigo-400 uppercase tracking-wider block">Team Management</span>
+                <p class="text-xs text-slate-400">{teamList.length} team{teamList.length !== 1 ? 's' : ''} on this device</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Current Team Button / Selector */}
+          <button
+            onClick={() => setShowTeamDropdown(!showTeamDropdown)}
+            class="w-full flex items-center justify-between bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 hover:border-indigo-500/50 transition"
+          >
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center text-white font-bold text-sm shadow">
+                ⚾
+              </div>
+              <div class="text-left">
+                <span class="text-[10px] text-emerald-400 font-bold uppercase block">Active Team</span>
+                <span class="text-white font-bold text-sm">{teamName}</span>
+              </div>
+            </div>
+            <ChevronDown class={`w-4 h-4 text-slate-400 transition ${showTeamDropdown ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Dropdown Panel */}
+          {showTeamDropdown && (
+            <div class="bg-slate-900/80 border border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-800">
+              {teamList.map((t) => {
+                const isActive = t.id === activeTeamId;
+                const isEditingThis = editingTeamId === t.id;
+
+                return (
+                  <div
+                    key={t.id}
+                    class={`p-3 flex items-center justify-between transition ${
+                      isActive ? 'bg-emerald-500/10' : 'hover:bg-slate-800/60'
+                    }`}
+                  >
+                    {isEditingThis ? (
+                      <div class="flex items-center gap-2 flex-1 mr-2">
+                        <input
+                          type="text"
+                          value={editingTeamNameVal}
+                          onChange={(e) => setEditingTeamNameVal(e.target.value)}
+                          class="bg-slate-900 border border-indigo-500 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none w-full"
+                          autoFocus
+                          onKeyDown={(e) => e.key === 'Enter' && handleSaveTeamRename(t.id)}
+                        />
+                        <button onClick={() => handleSaveTeamRename(t.id)} class="p-1.5 bg-emerald-600 rounded-lg text-white">
+                          <Check class="w-4 h-4" />
+                        </button>
+                        <button onClick={() => setEditingTeamId(null)} class="p-1.5 bg-slate-700 rounded-lg text-slate-300">
+                          <X class="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            onSwitchTeam(t.id);
+                            setShowTeamDropdown(false);
+                          }}
+                          class="flex items-center gap-2.5 flex-1 text-left"
+                        >
+                          <div class={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                          <span class={`text-sm font-semibold ${isActive ? 'text-emerald-300' : 'text-slate-300'}`}>
+                            {t.teamName}
+                          </span>
+                          {isActive && (
+                            <span class="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold">
+                              Active
+                            </span>
+                          )}
+                        </button>
+                        <div class="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingTeamId(t.id);
+                              setEditingTeamNameVal(t.teamName);
+                            }}
+                            class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition"
+                          >
+                            <Edit2 class="w-3.5 h-3.5" />
+                          </button>
+                          {teamList.length > 1 && (
+                            <button
+                              onClick={(e) => handleDeleteTeamClick(t.id, e)}
+                              class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                            >
+                              <Trash2 class="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Add New Team */}
+              {showNewTeamInput ? (
+                <div class="p-3 flex items-center gap-2 bg-slate-900/60">
+                  <input
+                    type="text"
+                    value={newTeamName}
+                    onChange={(e) => setNewTeamName(e.target.value)}
+                    placeholder="Team name..."
+                    class="flex-1 bg-slate-900 border border-indigo-500 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-400 focus:outline-none"
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && handleCreateTeam()}
+                  />
+                  <button onClick={handleCreateTeam} class="p-1.5 bg-emerald-600 rounded-lg text-white">
+                    <Check class="w-4 h-4" />
+                  </button>
+                  <button onClick={() => { setShowNewTeamInput(false); setNewTeamName(''); }} class="p-1.5 bg-slate-700 rounded-lg text-slate-300">
+                    <X class="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowNewTeamInput(true)}
+                  class="w-full p-3 flex items-center justify-center gap-2 text-indigo-400 hover:bg-indigo-500/10 text-xs font-bold transition"
+                >
+                  <PlusCircle class="w-4 h-4" />
+                  <span>Create New Team</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Team Profile / Name & Active Count */}
       <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-lg space-y-3">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2.5">
@@ -66,7 +246,7 @@ export default function RosterManager({ players, setPlayers, teamName, setTeamNa
               <Trophy class="w-4 h-4" />
             </div>
             <div>
-              <span class="text-[11px] font-bold text-amber-400 uppercase tracking-wider block">Team Profile</span>
+              <span class="text-[11px] font-bold text-amber-400 uppercase tracking-wider block">Team Roster</span>
               {isEditingTeamName ? (
                 <div class="flex items-center gap-2 mt-1">
                   <input
@@ -75,11 +255,9 @@ export default function RosterManager({ players, setPlayers, teamName, setTeamNa
                     onChange={(e) => setTempTeamName(e.target.value)}
                     class="bg-slate-900 border border-emerald-500 rounded-lg px-3 py-1 text-sm text-white font-bold focus:outline-none"
                     autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && saveTeamName()}
                   />
-                  <button
-                    onClick={saveTeamName}
-                    class="p-1.5 bg-emerald-600 rounded-lg text-white"
-                  >
+                  <button onClick={saveTeamName} class="p-1.5 bg-emerald-600 rounded-lg text-white">
                     <Check class="w-4 h-4" />
                   </button>
                 </div>
@@ -157,17 +335,12 @@ export default function RosterManager({ players, setPlayers, teamName, setTeamNa
                       onChange={(e) => setEditingName(e.target.value)}
                       class="bg-slate-900 border border-emerald-500 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none w-full"
                       autoFocus
+                      onKeyDown={(e) => e.key === 'Enter' && saveEdit(player.id)}
                     />
-                    <button
-                      onClick={() => saveEdit(player.id)}
-                      class="p-1.5 bg-emerald-600 rounded-lg text-white"
-                    >
+                    <button onClick={() => saveEdit(player.id)} class="p-1.5 bg-emerald-600 rounded-lg text-white">
                       <Check class="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      class="p-1.5 bg-slate-700 rounded-lg text-slate-300"
-                    >
+                    <button onClick={() => setEditingId(null)} class="p-1.5 bg-slate-700 rounded-lg text-slate-300">
                       <X class="w-4 h-4" />
                     </button>
                   </div>

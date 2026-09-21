@@ -1,6 +1,6 @@
-const STORAGE_KEY = 'teeball_lineup_tracker_v3';
+const STORAGE_KEY = 'teeball_lineup_tracker_v4';
 
-export const DEFAULT_INITIAL_STATE = {
+const DEFAULT_TEAM = {
   teamName: 'My Tee-Ball Team',
   players: [
     { id: 'p1', name: 'Aiden', active: true },
@@ -17,48 +17,120 @@ export const DEFAULT_INITIAL_STATE = {
   currentGame: null,
 };
 
-export function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_INITIAL_STATE;
-    const parsed = JSON.parse(raw);
-    return {
-      teamName: parsed.teamName || 'My Tee-Ball Team',
-      players: sortPlayersAlphabetically(parsed.players || DEFAULT_INITIAL_STATE.players),
-      games: parsed.games || [],
-      currentGame: parsed.currentGame || null,
-    };
-  } catch (err) {
-    console.error('Failed to load local state:', err);
-    return DEFAULT_INITIAL_STATE;
-  }
+export function createDefaultAppState() {
+  const defaultTeamId = 'team_' + Date.now();
+  return {
+    activeTeamId: defaultTeamId,
+    teams: {
+      [defaultTeamId]: { ...DEFAULT_TEAM },
+    },
+  };
+}
+
+export function createNewTeam(name) {
+  return {
+    teamName: name || 'New Team',
+    players: [],
+    games: [],
+    currentGame: null,
+  };
 }
 
 export function sortPlayersAlphabetically(playersList) {
   return [...playersList].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 }
 
+export function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      // Try migrating from v3 single-team format
+      const v3 = localStorage.getItem('teeball_lineup_tracker_v3');
+      if (v3) {
+        try {
+          const parsed = JSON.parse(v3);
+          if (parsed && Array.isArray(parsed.players)) {
+            const teamId = 'team_migrated';
+            return {
+              activeTeamId: teamId,
+              teams: {
+                [teamId]: {
+                  teamName: parsed.teamName || 'My Tee-Ball Team',
+                  players: sortPlayersAlphabetically(parsed.players),
+                  games: parsed.games || [],
+                  currentGame: parsed.currentGame || null,
+                },
+              },
+            };
+          }
+        } catch (e) {}
+      }
+      return createDefaultAppState();
+    }
+    const parsed = JSON.parse(raw);
+    // Validate structure
+    if (!parsed.teams || !parsed.activeTeamId) {
+      return createDefaultAppState();
+    }
+    // Sort players in each team
+    for (const teamId of Object.keys(parsed.teams)) {
+      const team = parsed.teams[teamId];
+      team.players = sortPlayersAlphabetically(team.players || []);
+    }
+    return parsed;
+  } catch (err) {
+    console.error('Failed to load local state:', err);
+    return createDefaultAppState();
+  }
+}
+
 export function saveState(state) {
   try {
-    const sortedState = {
-      ...state,
-      players: sortPlayersAlphabetically(state.players || []),
+    // Deep copy and sort players in each team before saving
+    const toSave = {
+      activeTeamId: state.activeTeamId,
+      teams: {},
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sortedState));
+    for (const [teamId, team] of Object.entries(state.teams)) {
+      toSave.teams[teamId] = {
+        ...team,
+        players: sortPlayersAlphabetically(team.players || []),
+      };
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   } catch (err) {
     console.error('Failed to save state to localStorage:', err);
   }
+}
+
+/** Returns the active team data object, or a default if missing */
+export function getActiveTeam(state) {
+  const team = state.teams[state.activeTeamId];
+  if (!team) {
+    // Fallback: pick first team
+    const firstId = Object.keys(state.teams)[0];
+    return firstId ? state.teams[firstId] : DEFAULT_TEAM;
+  }
+  return team;
+}
+
+/** Returns a list of { id, teamName } for the team switcher */
+export function getTeamList(state) {
+  return Object.entries(state.teams).map(([id, team]) => ({
+    id,
+    teamName: team.teamName,
+  }));
 }
 
 export function exportBackup(state) {
   const jsonStr = JSON.stringify(state, null, 2);
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-  
+
   const dateStr = new Date().toISOString().slice(0, 10);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `teeball-season-backup-${dateStr}.json`;
+  link.download = `teeball-all-teams-backup-${dateStr}.json`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -68,15 +140,29 @@ export function exportBackup(state) {
 export function parseBackupText(jsonText) {
   try {
     const parsed = JSON.parse(jsonText);
-    if (!parsed || !Array.isArray(parsed.players)) {
-      throw new Error('Invalid backup format: missing players array');
+
+    // v4 multi-team format
+    if (parsed.teams && parsed.activeTeamId) {
+      return parsed;
     }
-    return {
-      teamName: parsed.teamName || 'My Tee-Ball Team',
-      players: sortPlayersAlphabetically(parsed.players),
-      games: Array.isArray(parsed.games) ? parsed.games : [],
-      currentGame: parsed.currentGame || null,
-    };
+
+    // v3 single-team format (backward compat)
+    if (parsed.players && Array.isArray(parsed.players)) {
+      const teamId = 'team_imported';
+      return {
+        activeTeamId: teamId,
+        teams: {
+          [teamId]: {
+            teamName: parsed.teamName || 'Imported Team',
+            players: sortPlayersAlphabetically(parsed.players),
+            games: Array.isArray(parsed.games) ? parsed.games : [],
+            currentGame: parsed.currentGame || null,
+          },
+        },
+      };
+    }
+
+    throw new Error('Unrecognized backup format');
   } catch (err) {
     throw new Error('Could not parse backup JSON. Please check the file/text.');
   }

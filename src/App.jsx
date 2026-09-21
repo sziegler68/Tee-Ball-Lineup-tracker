@@ -5,49 +5,113 @@ import HistoryLogger from './components/HistoryLogger';
 import InningTracker from './components/InningTracker';
 import StatsDashboard from './components/StatsDashboard';
 import BackupModal from './components/BackupModal';
-import { loadState, saveState, sortPlayersAlphabetically } from './utils/storage';
+import { loadState, saveState, getActiveTeam, getTeamList, sortPlayersAlphabetically, createNewTeam } from './utils/storage';
 
 export default function App() {
   const [state, setState] = useState(() => loadState());
   const [activeTab, setActiveTab] = useState('live');
   const [isBackupOpen, setIsBackupOpen] = useState(false);
 
-  // Auto-save state to localStorage on any change
+  // Auto-save to localStorage on any change
   useEffect(() => {
     saveState(state);
   }, [state]);
 
+  const activeTeam = getActiveTeam(state);
+  const teamList = getTeamList(state);
+
+  // --- Active team data setters (update nested team object) ---
+
+  const updateActiveTeam = (updater) => {
+    setState((prev) => ({
+      ...prev,
+      teams: {
+        ...prev.teams,
+        [prev.activeTeamId]: updater(prev.teams[prev.activeTeamId]),
+      },
+    }));
+  };
+
   const setPlayers = (players) => {
-    setState((prev) => ({ ...prev, players: sortPlayersAlphabetically(players) }));
+    updateActiveTeam((team) => ({ ...team, players: sortPlayersAlphabetically(players) }));
   };
 
   const setTeamName = (teamName) => {
-    setState((prev) => ({ ...prev, teamName }));
+    updateActiveTeam((team) => ({ ...team, teamName }));
   };
 
   const setGames = (games) => {
-    setState((prev) => ({ ...prev, games }));
+    updateActiveTeam((team) => ({ ...team, games }));
   };
 
   const setCurrentGame = (currentGame) => {
-    setState((prev) => ({ ...prev, currentGame }));
+    updateActiveTeam((team) => ({ ...team, currentGame }));
   };
 
   const handleFinishGame = () => {
-    if (!state.currentGame) return;
+    if (!activeTeam.currentGame) return;
     const completedGame = {
-      ...state.currentGame,
+      ...activeTeam.currentGame,
       completedAt: new Date().toISOString(),
     };
 
     if (window.confirm(`Save and finish ${completedGame.name}? It will be recorded into season history.`)) {
-      setState((prev) => ({
-        ...prev,
-        games: [...prev.games, completedGame],
+      updateActiveTeam((team) => ({
+        ...team,
+        games: [...team.games, completedGame],
         currentGame: null,
       }));
       setActiveTab('stats');
     }
+  };
+
+  // --- Multi-team management ---
+
+  const handleSwitchTeam = (teamId) => {
+    setState((prev) => ({ ...prev, activeTeamId: teamId }));
+  };
+
+  const handleAddTeam = (name) => {
+    const newId = 'team_' + Date.now();
+    setState((prev) => ({
+      ...prev,
+      activeTeamId: newId,
+      teams: {
+        ...prev.teams,
+        [newId]: createNewTeam(name),
+      },
+    }));
+  };
+
+  const handleDeleteTeam = (teamId) => {
+    setState((prev) => {
+      const remaining = { ...prev.teams };
+      delete remaining[teamId];
+      const remainingIds = Object.keys(remaining);
+      if (remainingIds.length === 0) {
+        // Don't allow deleting the last team — recreate default
+        const newId = 'team_' + Date.now();
+        return {
+          activeTeamId: newId,
+          teams: { [newId]: createNewTeam('My Tee-Ball Team') },
+        };
+      }
+      return {
+        ...prev,
+        activeTeamId: prev.activeTeamId === teamId ? remainingIds[0] : prev.activeTeamId,
+        teams: remaining,
+      };
+    });
+  };
+
+  const handleRenameTeam = (teamId, newName) => {
+    setState((prev) => ({
+      ...prev,
+      teams: {
+        ...prev.teams,
+        [teamId]: { ...prev.teams[teamId], teamName: newName },
+      },
+    }));
   };
 
   const handleRestoreState = (newState) => {
@@ -60,15 +124,15 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenBackup={() => setIsBackupOpen(true)}
-        teamName={state.teamName}
+        teamName={activeTeam.teamName}
       />
 
       <main class="flex-1 pb-12">
         {activeTab === 'live' && (
           <InningTracker
-            players={state.players}
-            games={state.games}
-            currentGame={state.currentGame}
+            players={activeTeam.players}
+            games={activeTeam.games}
+            currentGame={activeTeam.currentGame}
             setCurrentGame={setCurrentGame}
             onFinishGame={handleFinishGame}
           />
@@ -76,26 +140,32 @@ export default function App() {
 
         {activeTab === 'roster' && (
           <RosterManager
-            players={state.players}
+            players={activeTeam.players}
             setPlayers={setPlayers}
-            teamName={state.teamName}
+            teamName={activeTeam.teamName}
             setTeamName={setTeamName}
+            teamList={teamList}
+            activeTeamId={state.activeTeamId}
+            onSwitchTeam={handleSwitchTeam}
+            onAddTeam={handleAddTeam}
+            onDeleteTeam={handleDeleteTeam}
+            onRenameTeam={handleRenameTeam}
           />
         )}
 
         {activeTab === 'history' && (
           <HistoryLogger
-            players={state.players}
-            games={state.games}
+            players={activeTeam.players}
+            games={activeTeam.games}
             setGames={setGames}
           />
         )}
 
         {activeTab === 'stats' && (
           <StatsDashboard
-            players={state.players}
-            games={state.games}
-            currentGame={state.currentGame}
+            players={activeTeam.players}
+            games={activeTeam.games}
+            currentGame={activeTeam.currentGame}
           />
         )}
       </main>
