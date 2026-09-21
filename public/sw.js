@@ -1,4 +1,4 @@
-const CACHE_NAME = 'teeball-fairplay-v2';
+const CACHE_NAME = 'teeball-fairplay-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
