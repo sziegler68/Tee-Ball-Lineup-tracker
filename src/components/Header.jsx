@@ -1,12 +1,13 @@
 import React from 'react';
-import { Users, Calendar, PlayCircle, BarChart3, Download, ShieldCheck } from 'lucide-react';
+import { Users, Calendar, PlayCircle, BarChart3, Download, ShieldCheck, Settings } from 'lucide-react';
 
 export default function Header({ activeTab, setActiveTab, onOpenBackup, teamName }) {
   const tabs = [
     { id: 'live', label: 'Live Game', icon: PlayCircle },
     { id: 'roster', label: 'Roster', icon: Users },
     { id: 'history', label: 'Past Games', icon: Calendar },
-    { id: 'stats', label: 'Fairness Stats', icon: BarChart3 },
+    { id: 'stats', label: 'Stats', icon: BarChart3 },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (

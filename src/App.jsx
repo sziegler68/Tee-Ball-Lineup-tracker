@@ -4,6 +4,7 @@ import RosterManager from './components/RosterManager';
 import HistoryLogger from './components/HistoryLogger';
 import InningTracker from './components/InningTracker';
 import StatsDashboard from './components/StatsDashboard';
+import SettingsPage from './components/SettingsPage';
 import BackupModal from './components/BackupModal';
 import { loadState, saveState, getActiveTeam, getTeamList, sortPlayersAlphabetically, createNewTeam } from './utils/storage';
 
@@ -48,6 +49,10 @@ export default function App() {
     updateActiveTeam((team) => ({ ...team, currentGame }));
   };
 
+  const setEnabledPositions = (enabledPositions) => {
+    updateActiveTeam((team) => ({ ...team, enabledPositions }));
+  };
+
   const handleFinishGame = () => {
     if (!activeTeam.currentGame) return;
     const completedGame = {
@@ -89,7 +94,6 @@ export default function App() {
       delete remaining[teamId];
       const remainingIds = Object.keys(remaining);
       if (remainingIds.length === 0) {
-        // Don't allow deleting the last team — recreate default
         const newId = 'team_' + Date.now();
         return {
           activeTeamId: newId,
@@ -135,6 +139,7 @@ export default function App() {
             currentGame={activeTeam.currentGame}
             setCurrentGame={setCurrentGame}
             onFinishGame={handleFinishGame}
+            enabledPositions={activeTeam.enabledPositions}
           />
         )}
 
@@ -158,6 +163,7 @@ export default function App() {
             players={activeTeam.players}
             games={activeTeam.games}
             setGames={setGames}
+            enabledPositions={activeTeam.enabledPositions}
           />
         )}
 
@@ -166,6 +172,14 @@ export default function App() {
             players={activeTeam.players}
             games={activeTeam.games}
             currentGame={activeTeam.currentGame}
+            enabledPositions={activeTeam.enabledPositions}
+          />
+        )}
+
+        {activeTab === 'settings' && (
+          <SettingsPage
+            enabledPositions={activeTeam.enabledPositions}
+            setEnabledPositions={setEnabledPositions}
           />
         )}
       </main>

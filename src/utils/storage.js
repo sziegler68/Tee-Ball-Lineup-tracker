@@ -1,7 +1,10 @@
+import { getDefaultEnabledKeys } from './fairnessEngine';
+
 const STORAGE_KEY = 'teeball_lineup_tracker_v4';
 
 const DEFAULT_TEAM = {
   teamName: 'My Tee-Ball Team',
+  enabledPositions: getDefaultEnabledKeys(),
   players: [
     { id: 'p1', name: 'Aiden', active: true },
     { id: 'p2', name: 'Ajax', active: true },
@@ -30,6 +33,7 @@ export function createDefaultAppState() {
 export function createNewTeam(name) {
   return {
     teamName: name || 'New Team',
+    enabledPositions: getDefaultEnabledKeys(),
     players: [],
     games: [],
     currentGame: null,
@@ -56,6 +60,7 @@ export function loadState() {
               teams: {
                 [teamId]: {
                   teamName: parsed.teamName || 'My Tee-Ball Team',
+                  enabledPositions: getDefaultEnabledKeys(),
                   players: sortPlayersAlphabetically(parsed.players),
                   games: parsed.games || [],
                   currentGame: parsed.currentGame || null,
@@ -72,10 +77,13 @@ export function loadState() {
     if (!parsed.teams || !parsed.activeTeamId) {
       return createDefaultAppState();
     }
-    // Sort players in each team
+    // Sort players and ensure enabledPositions exists in each team
     for (const teamId of Object.keys(parsed.teams)) {
       const team = parsed.teams[teamId];
       team.players = sortPlayersAlphabetically(team.players || []);
+      if (!team.enabledPositions) {
+        team.enabledPositions = getDefaultEnabledKeys();
+      }
     }
     return parsed;
   } catch (err) {

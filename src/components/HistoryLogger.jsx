@@ -1,17 +1,13 @@
 import React, { useState } from 'react';
 import { PlusCircle, Trash2, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
-import { POSITIONS } from '../utils/fairnessEngine';
+import { getEnabledPositions } from '../utils/fairnessEngine';
 
 const EMPTY_INNING = (num) => ({
   inning: num,
-  firstBat: '',
-  lastBat: '',
-  firstBase: '',
-  pitcher1: '',
-  pitcher2: '',
 });
 
-export default function HistoryLogger({ players, games, setGames }) {
+export default function HistoryLogger({ players, games, setGames, enabledPositions }) {
+  const positions = getEnabledPositions(enabledPositions || []);
   const [showAddForm, setShowAddForm] = useState(false);
   const [gameName, setGameName] = useState(`Game ${games.length + 1}`);
   const [gameDate, setGameDate] = useState(new Date().toISOString().slice(0, 10));
@@ -129,7 +125,7 @@ export default function HistoryLogger({ players, games, setGames }) {
                 </span>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {POSITIONS.map(({ key, label, icon }) => (
+                  {positions.map(({ key, label, icon }) => (
                     <div key={key} class="flex items-center justify-between bg-slate-800 p-2 rounded-lg border border-slate-700/60">
                       <span class="text-xs text-slate-300 font-medium flex items-center gap-1">
                         <span>{icon}</span> {label}
@@ -228,7 +224,7 @@ export default function HistoryLogger({ players, games, setGames }) {
                       <div key={idx} class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/60 space-y-1.5">
                         <span class="font-bold text-amber-400">Inning {idx + 1}</span>
                         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-slate-300">
-                          {POSITIONS.map(({ key, label, icon }) => (
+                          {positions.map(({ key, label, icon }) => (
                             <div key={key} class="bg-slate-900/80 px-2 py-1 rounded border border-slate-700/40">
                               <span class="text-slate-400">{icon} {label}:</span>{' '}
                               <span class="font-semibold text-white">{getPlayerName(inn[key])}</span>

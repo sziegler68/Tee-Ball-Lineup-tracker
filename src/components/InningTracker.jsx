@@ -1,17 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, CheckCircle, RotateCcw, Award, PlusCircle, Trash2, Edit2, Check, X } from 'lucide-react';
-import { POSITIONS, generateInningSuggestions } from '../utils/fairnessEngine';
+import { getEnabledPositions, generateInningSuggestions } from '../utils/fairnessEngine';
 
 const EMPTY_INNING = (num) => ({
   inning: num,
-  firstBat: '',
-  lastBat: '',
-  firstBase: '',
-  pitcher1: '',
-  pitcher2: '',
 });
 
-export default function InningTracker({ players, games, currentGame, setCurrentGame, onFinishGame }) {
+export default function InningTracker({ players, games, currentGame, setCurrentGame, onFinishGame, enabledPositions }) {
+  const positions = getEnabledPositions(enabledPositions || []);
   const [activeInningNum, setActiveInningNum] = useState(1);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState('');
@@ -40,7 +36,8 @@ export default function InningTracker({ players, games, currentGame, setCurrentG
   const { suggestions, roleMilestones } = generateInningSuggestions(
     players,
     games,
-    currentGame
+    currentGame,
+    enabledPositions
   );
 
   const handlePositionSelect = (posKey, playerId) => {
@@ -148,7 +145,7 @@ export default function InningTracker({ players, games, currentGame, setCurrentG
           {currentGame.innings.map((inn, idx) => {
             const num = idx + 1;
             const isActive = activeInningNum === num;
-            const isFilled = inn.firstBat && inn.lastBat && inn.firstBase && inn.pitcher1 && inn.pitcher2;
+            const isFilled = inn && positions.length > 0 && positions.every(({ key }) => inn[key]);
 
             return (
               <button
@@ -209,7 +206,7 @@ export default function InningTracker({ players, games, currentGame, setCurrentG
 
       {/* Position Cards */}
       <div class="space-y-3">
-        {POSITIONS.map(({ key, label, icon }) => {
+        {positions.map(({ key, label, icon }) => {
           const selectedPlayerId = currentInningData[key] || '';
           const suggestedPlayerId = suggestions[key] || '';
           const milestone = roleMilestones[key] || {};

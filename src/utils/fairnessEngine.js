@@ -1,51 +1,73 @@
 /**
- * Key positions tracked:
- * - firstBat: 1st to bat (Leadoff)
- * - lastBat: Last to bat (Anchor)
- * - firstBase: 1st Base
- * - pitcher1: Pitcher 1
- * - pitcher2: Pitcher 2
+ * Master list of all trackable positions, grouped by category.
+ * Each position has a unique key, label, icon, category, and whether it's on by default.
  */
 
-export const POSITIONS = [
-  { key: 'firstBat', label: '1st to Bat', icon: '⚾' },
-  { key: 'lastBat', label: 'Last to Bat', icon: '🏁' },
-  { key: 'firstBase', label: '1st Base', icon: '🏃' },
-  { key: 'pitcher1', label: 'Pitcher 1', icon: '🎯' },
-  { key: 'pitcher2', label: 'Pitcher 2', icon: '🎯' },
+export const ALL_POSITIONS = [
+  // --- Offense ---
+  { key: 'firstBat',  label: '1st to Bat (Leadoff)', icon: '⚾', category: 'offense', defaultOn: true },
+  { key: 'bat2',      label: '2nd Batter',           icon: '⚾', category: 'offense', defaultOn: false },
+  { key: 'bat3',      label: '3rd Batter',           icon: '⚾', category: 'offense', defaultOn: false },
+  { key: 'bat4',      label: '4th Batter',           icon: '⚾', category: 'offense', defaultOn: false },
+  { key: 'bat5',      label: '5th Batter',           icon: '⚾', category: 'offense', defaultOn: false },
+  { key: 'bat6',      label: '6th Batter',           icon: '⚾', category: 'offense', defaultOn: false },
+  { key: 'bat7',      label: '7th Batter',           icon: '⚾', category: 'offense', defaultOn: false },
+  { key: 'bat8',      label: '8th Batter',           icon: '⚾', category: 'offense', defaultOn: false },
+  { key: 'bat9',      label: '9th Batter',           icon: '⚾', category: 'offense', defaultOn: false },
+  { key: 'bat10',     label: '10th Batter',          icon: '⚾', category: 'offense', defaultOn: false },
+  { key: 'lastBat',   label: 'Last to Bat (Anchor)', icon: '🏁', category: 'offense', defaultOn: true },
+
+  // --- Defense ---
+  { key: 'pitcher1',   label: 'Pitcher 1',   icon: '🎯', category: 'defense', defaultOn: true },
+  { key: 'pitcher2',   label: 'Pitcher 2',   icon: '🎯', category: 'defense', defaultOn: true },
+  { key: 'catcher',    label: 'Catcher',     icon: '🧤', category: 'defense', defaultOn: false },
+  { key: 'firstBase',  label: '1st Base',    icon: '🏃', category: 'defense', defaultOn: true },
+  { key: 'secondBase', label: '2nd Base',    icon: '🏃', category: 'defense', defaultOn: false },
+  { key: 'thirdBase',  label: '3rd Base',    icon: '🏃', category: 'defense', defaultOn: false },
+  { key: 'shortstop',  label: 'Shortstop',   icon: '🏃', category: 'defense', defaultOn: false },
+  { key: 'leftField',  label: 'Left Field',  icon: '🌿', category: 'defense', defaultOn: false },
+  { key: 'centerField',label: 'Center Field',icon: '🌿', category: 'defense', defaultOn: false },
+  { key: 'rightField', label: 'Right Field', icon: '🌿', category: 'defense', defaultOn: false },
 ];
+
+/** Returns the default enabled position keys */
+export function getDefaultEnabledKeys() {
+  return ALL_POSITIONS.filter((p) => p.defaultOn).map((p) => p.key);
+}
+
+/** Filters ALL_POSITIONS to only include positions whose keys are in enabledKeys */
+export function getEnabledPositions(enabledKeys) {
+  const keySet = new Set(enabledKeys);
+  return ALL_POSITIONS.filter((p) => keySet.has(p.key));
+}
+
+/** Returns all position keys that count as "pitcher" for combined stats */
+const PITCHER_KEYS = new Set(['pitcher1', 'pitcher2']);
 
 /**
  * Calculates season-wide turn counts for each player across all recorded games.
- * @param {Array} players - Array of player objects { id, name }
- * @param {Array} games - Array of game objects { id, name, date, innings: [...] }
- * @param {Object} currentGame - Optional current active game object
  */
-export function calculatePlayerStats(players, games = [], currentGame = null) {
+export function calculatePlayerStats(players, games = [], currentGame = null, enabledKeys = null) {
+  const positionsToCount = enabledKeys
+    ? ALL_POSITIONS.filter((p) => enabledKeys.includes(p.key))
+    : ALL_POSITIONS;
+
   const stats = {};
 
   players.forEach((player) => {
+    const seasonCounts = { totalKeyRoles: 0, totalPitcher: 0 };
+    const currentGameCounts = { totalKeyRoles: 0 };
+    positionsToCount.forEach(({ key }) => {
+      seasonCounts[key] = 0;
+      currentGameCounts[key] = 0;
+    });
+
     stats[player.id] = {
       id: player.id,
       name: player.name,
       active: player.active !== false,
-      seasonCounts: {
-        firstBat: 0,
-        lastBat: 0,
-        firstBase: 0,
-        pitcher1: 0,
-        pitcher2: 0,
-        totalPitcher: 0,
-        totalKeyRoles: 0,
-      },
-      currentGameCounts: {
-        firstBat: 0,
-        lastBat: 0,
-        firstBase: 0,
-        pitcher1: 0,
-        pitcher2: 0,
-        totalKeyRoles: 0,
-      },
+      seasonCounts,
+      currentGameCounts,
     };
   });
 
@@ -57,15 +79,14 @@ export function calculatePlayerStats(players, games = [], currentGame = null) {
   allGames.forEach((game) => {
     const isCurrent = currentGame && game.id === currentGame.id;
     (game.innings || []).forEach((inning) => {
-      POSITIONS.forEach(({ key }) => {
+      positionsToCount.forEach(({ key }) => {
         const playerId = inning[key];
         if (playerId && stats[playerId]) {
           stats[playerId].seasonCounts[key] = (stats[playerId].seasonCounts[key] || 0) + 1;
           stats[playerId].seasonCounts.totalKeyRoles += 1;
-          if (key === 'pitcher1' || key === 'pitcher2') {
+          if (PITCHER_KEYS.has(key)) {
             stats[playerId].seasonCounts.totalPitcher += 1;
           }
-
           if (isCurrent) {
             stats[playerId].currentGameCounts[key] = (stats[playerId].currentGameCounts[key] || 0) + 1;
             stats[playerId].currentGameCounts.totalKeyRoles += 1;
@@ -79,21 +100,23 @@ export function calculatePlayerStats(players, games = [], currentGame = null) {
 }
 
 /**
- * Generate suggestions for each position for a given inning.
+ * Generate suggestions for each enabled position for a given inning.
  */
-export function generateInningSuggestions(players, games = [], currentGame = null) {
+export function generateInningSuggestions(players, games = [], currentGame = null, enabledKeys = null) {
   const activePlayers = players.filter((p) => p.active !== false);
-  const stats = calculatePlayerStats(players, games, currentGame);
+  const positionsToUse = enabledKeys
+    ? ALL_POSITIONS.filter((p) => enabledKeys.includes(p.key))
+    : ALL_POSITIONS.filter((p) => p.defaultOn);
+
+  const stats = calculatePlayerStats(players, games, currentGame, enabledKeys);
 
   const roleMilestones = {};
   const sortedCandidatesByRole = {};
 
-  POSITIONS.forEach(({ key }) => {
-    // Check if all active players have done this position at least once in season history
+  positionsToUse.forEach(({ key }) => {
     const havenotDoneInSeason = activePlayers.filter(
       (p) => (stats[p.id]?.seasonCounts[key] || 0) === 0
     );
-
     const allHaveDoneInSeason = activePlayers.length > 0 && havenotDoneInSeason.length === 0;
 
     roleMilestones[key] = {
@@ -101,47 +124,39 @@ export function generateInningSuggestions(players, games = [], currentGame = nul
       havenotDoneCount: havenotDoneInSeason.length,
     };
 
-    // Sort players for this specific role
     const candidates = [...activePlayers].sort((a, b) => {
       const statA = stats[a.id] || { seasonCounts: { [key]: 0, totalKeyRoles: 0 }, currentGameCounts: { [key]: 0, totalKeyRoles: 0 } };
       const statB = stats[b.id] || { seasonCounts: { [key]: 0, totalKeyRoles: 0 }, currentGameCounts: { [key]: 0, totalKeyRoles: 0 } };
 
-      // 1. Position turns in season (asc)
-      const seasonPosDiff = statA.seasonCounts[key] - statB.seasonCounts[key];
+      const seasonPosDiff = (statA.seasonCounts[key] || 0) - (statB.seasonCounts[key] || 0);
       if (seasonPosDiff !== 0) return seasonPosDiff;
 
-      // 2. Position turns in current game (asc)
-      const currentPosDiff = statA.currentGameCounts[key] - statB.currentGameCounts[key];
+      const currentPosDiff = (statA.currentGameCounts[key] || 0) - (statB.currentGameCounts[key] || 0);
       if (currentPosDiff !== 0) return currentPosDiff;
 
-      // 3. Total key role turns in current game (asc)
       const currentGameTotalDiff = statA.currentGameCounts.totalKeyRoles - statB.currentGameCounts.totalKeyRoles;
       if (currentGameTotalDiff !== 0) return currentGameTotalDiff;
 
-      // 4. Total key role turns in season (asc)
       const seasonTotalDiff = statA.seasonCounts.totalKeyRoles - statB.seasonCounts.totalKeyRoles;
       if (seasonTotalDiff !== 0) return seasonTotalDiff;
 
-      // 5. Name tie-breaker
       return a.name.localeCompare(b.name);
     });
 
     sortedCandidatesByRole[key] = candidates;
   });
 
-  // Assign 1 unique player per position if possible
   const suggestions = {};
   const assignedPlayerIds = new Set();
 
-  POSITIONS.forEach(({ key }) => {
+  positionsToUse.forEach(({ key }) => {
     const candidates = sortedCandidatesByRole[key];
     const bestUnassigned = candidates.find((p) => !assignedPlayerIds.has(p.id));
-    
+
     if (bestUnassigned) {
       suggestions[key] = bestUnassigned.id;
       assignedPlayerIds.add(bestUnassigned.id);
     } else if (candidates.length > 0) {
-      // Fallback if fewer active players than positions
       suggestions[key] = candidates[0].id;
     } else {
       suggestions[key] = '';
