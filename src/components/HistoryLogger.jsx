@@ -20,6 +20,9 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
     EMPTY_INNING(4),
   ]);
 
+  // Attendance tracking for past games - default all players present
+  const [pastAttendance, setPastAttendance] = useState(() => players.map((p) => p.id));
+
   const [expandedGameId, setExpandedGameId] = useState(null);
 
   const handleInningChange = (inningIdx, field, value) => {
@@ -37,6 +40,12 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
     setInnings(innings.slice(0, -1));
   };
 
+  const handleTogglePastAttendance = (playerId) => {
+    setPastAttendance((prev) =>
+      prev.includes(playerId) ? prev.filter((id) => id !== playerId) : [...prev, playerId]
+    );
+  };
+
   const handleSavePastGame = (e) => {
     e.preventDefault();
     const newGame = {
@@ -44,6 +53,7 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
       name: gameName.trim() || `Game ${games.length + 1}`,
       date: gameDate,
       innings: innings,
+      attendance: pastAttendance,
     };
     setGames([...games, newGame]);
     setShowAddForm(false);
@@ -54,6 +64,7 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
       EMPTY_INNING(3),
       EMPTY_INNING(4),
     ]);
+    setPastAttendance(players.map((p) => p.id));
   };
 
   const handleDeleteGame = (id) => {
@@ -114,6 +125,50 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
                 onChange={(e) => setGameDate(e.target.value)}
                 class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
               />
+            </div>
+          </div>
+
+          {/* Attendance Checklist */}
+          <div class="bg-slate-900/70 border border-slate-700/80 rounded-xl p-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                Who Attended? ({pastAttendance.length}/{players.length})
+              </span>
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPastAttendance(players.map((p) => p.id))}
+                  class="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPastAttendance([])}
+                  class="text-[10px] text-slate-400 hover:text-slate-300 font-bold"
+                >
+                  None
+                </button>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              {players.map((p) => {
+                const present = pastAttendance.includes(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => handleTogglePastAttendance(p.id)}
+                    class={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                      present
+                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                        : 'bg-slate-800 border-slate-700 text-slate-500 line-through'
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -196,7 +251,10 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
                     <Calendar class="w-5 h-5 text-emerald-400" />
                     <div>
                       <h3 class="font-bold text-white text-sm">{g.name}</h3>
-                      <span class="text-xs text-slate-400">{g.date} • {(g.innings || []).length} Inning{(g.innings || []).length !== 1 ? 's' : ''}</span>
+                      <span class="text-xs text-slate-400">
+                        {g.date} • {(g.innings || []).length} Inning{(g.innings || []).length !== 1 ? 's' : ''}
+                        {g.attendance && ` • ${g.attendance.length} Players`}
+                      </span>
                     </div>
                   </div>
 
@@ -220,6 +278,32 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
                 {/* Expanded Details */}
                 {isExpanded && (
                   <div class="border-t border-slate-700 bg-slate-900/60 p-4 space-y-3 text-xs">
+                    {/* Attendance */}
+                    {g.attendance && (
+                      <div class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/60 space-y-1.5">
+                        <span class="font-bold text-emerald-400">
+                          Attendance ({g.attendance.length}/{players.length})
+                        </span>
+                        <div class="flex flex-wrap gap-1.5">
+                          {players.map((p) => {
+                            const attended = g.attendance.includes(p.id);
+                            return (
+                              <span
+                                key={p.id}
+                                class={`px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                                  attended
+                                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                                    : 'bg-slate-900 border-slate-700 text-slate-500 line-through'
+                                }`}
+                              >
+                                {p.name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {(g.innings || []).map((inn, idx) => (
                       <div key={idx} class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/60 space-y-1.5">
                         <span class="font-bold text-amber-400">Inning {idx + 1}</span>

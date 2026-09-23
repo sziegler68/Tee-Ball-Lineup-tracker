@@ -58,6 +58,7 @@ export default function App() {
     const completedGame = {
       ...activeTeam.currentGame,
       completedAt: new Date().toISOString(),
+      attendance: activeTeam.players.filter((p) => p.active !== false).map((p) => p.id),
     };
 
     if (window.confirm(`Save and finish ${completedGame.name}? It will be recorded into season history.`)) {
