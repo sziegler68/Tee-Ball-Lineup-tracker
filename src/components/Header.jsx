@@ -37,7 +37,7 @@ export default function Header({ activeTab, setActiveTab, onOpenBackup, teamName
       </div>
 
       {/* Navigation Tabs */}
-      <div class="max-w-4xl mx-auto px-2 flex border-t border-slate-800/80 overflow-x-auto no-scrollbar">
+      <div class="max-w-4xl mx-auto px-1 flex border-t border-slate-800/80">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -45,7 +45,7 @@ export default function Header({ activeTab, setActiveTab, onOpenBackup, teamName
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              class={`flex-1 min-w-[85px] py-2.5 px-2 flex flex-col items-center gap-1 border-b-2 font-medium text-xs transition ${
+              class={`flex-1 py-2 px-1 flex flex-col items-center gap-0.5 border-b-2 font-medium text-[10px] sm:text-xs transition ${
                 isActive
                   ? 'border-emerald-500 text-emerald-400 font-bold bg-emerald-500/10'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
