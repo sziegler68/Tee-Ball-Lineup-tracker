@@ -151,6 +151,12 @@ export function parseBackupText(jsonText) {
 
     // v4 multi-team format
     if (parsed.teams && parsed.activeTeamId) {
+      // Ensure each team has enabledPositions
+      for (const teamId of Object.keys(parsed.teams)) {
+        if (!parsed.teams[teamId].enabledPositions) {
+          parsed.teams[teamId].enabledPositions = getDefaultEnabledKeys();
+        }
+      }
       return parsed;
     }
 
@@ -162,6 +168,7 @@ export function parseBackupText(jsonText) {
         teams: {
           [teamId]: {
             teamName: parsed.teamName || 'Imported Team',
+            enabledPositions: getDefaultEnabledKeys(),
             players: sortPlayersAlphabetically(parsed.players),
             games: Array.isArray(parsed.games) ? parsed.games : [],
             currentGame: parsed.currentGame || null,
@@ -172,6 +179,7 @@ export function parseBackupText(jsonText) {
 
     throw new Error('Unrecognized backup format');
   } catch (err) {
+    if (err.message === 'Unrecognized backup format') throw err;
     throw new Error('Could not parse backup JSON. Please check the file/text.');
   }
 }
