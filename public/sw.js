@@ -1,4 +1,4 @@
-const CACHE_NAME = 'teeball-fairplay-v3';
+const CACHE_NAME = 'teeball-fairplay-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -31,25 +31,26 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Network-first strategy: try network, fall back to cache for offline use
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
+    fetch(event.request)
+      .then((networkResponse) => {
+        // Got a fresh response — cache it and return
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
         }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
         return networkResponse;
-      }).catch(() => {
-        return caches.match('./') || caches.match('./index.html');
-      });
-    })
+      })
+      .catch(() => {
+        // Offline — serve from cache
+        return caches.match(event.request).then((cachedResponse) => {
+          return cachedResponse || caches.match('./') || caches.match('./index.html');
+        });
+      })
   );
 });
