@@ -50,32 +50,29 @@ export default function InningTracker({
   const [setupHomeAway, setSetupHomeAway] = useState('away'); // 'away' (bat 1st) | 'home' (field 1st)
   const [setupAttendance, setSetupAttendance] = useState([]);
 
-  // Open New Game modal if no active game exists
-  useEffect(() => {
-    if (!currentGame) {
-      setSetupGameName(`Game ${games.length + 1}`);
-      setSetupAttendance(players.filter((p) => p.active !== false).map((p) => p.id));
-      setShowNewGameModal(true);
-    }
-  }, [currentGame, games.length, players]);
+  // Setup game name default when opening modal
+  const handleOpenNewGameModal = () => {
+    setSetupGameName(`Game ${games.length + 1}`);
+    setSetupAttendance(players.filter((p) => p.active !== false).map((p) => p.id));
+    setShowNewGameModal(true);
+  };
 
   if (!currentGame && !showNewGameModal) {
     return (
-      <div class="max-w-md mx-auto p-6 text-center space-y-4">
-        <div class="w-16 h-16 mx-auto bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center text-3xl">
+      <div class="max-w-md mx-auto p-6 text-center space-y-4 pt-12">
+        <div class="w-16 h-16 mx-auto bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center text-3xl shadow-lg shadow-emerald-500/10">
           ⚾
         </div>
-        <h2 class="text-xl font-bold text-white">No Game in Progress</h2>
-        <p class="text-sm text-slate-400">Ready to start today's tee-ball game?</p>
+        <h2 class="text-xl font-black text-white">No Active Game</h2>
+        <p class="text-sm text-slate-400">
+          Your last game is safely stored in season history. Tap below whenever you're ready to start today's game!
+        </p>
         <button
-          onClick={() => {
-            setSetupGameName(`Game ${games.length + 1}`);
-            setSetupAttendance(players.filter((p) => p.active !== false).map((p) => p.id));
-            setShowNewGameModal(true);
-          }}
-          class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg transition"
+          onClick={handleOpenNewGameModal}
+          class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 active:scale-98 transition text-sm flex items-center justify-center gap-2"
         >
-          Start New Game
+          <PlusCircle class="w-5 h-5" />
+          <span>Start New Game</span>
         </button>
       </div>
     );
@@ -369,17 +366,28 @@ export default function InningTracker({
               </div>
             )}
             <div class="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
-              <span class="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const newDesignation = currentGame.homeOrAway === 'home' ? 'away' : 'home';
+                  setCurrentGame({ ...currentGame, homeOrAway: newDesignation });
+                }}
+                class="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-lg border transition bg-slate-900 border-slate-700 hover:border-slate-500 text-slate-200"
+                title="Tap to toggle Home / Away"
+              >
                 {isAway ? (
                   <>
-                    <Plane class="w-3 h-3 text-sky-400" /> Away (Bat 1st)
+                    <Plane class="w-3 h-3 text-sky-400" />
+                    <span>Away (Bat 1st)</span>
                   </>
                 ) : (
                   <>
-                    <Home class="w-3 h-3 text-amber-400" /> Home (Field 1st)
+                    <Home class="w-3 h-3 text-amber-400" />
+                    <span>Home (Field 1st)</span>
                   </>
                 )}
-              </span>
+                <span class="text-[9px] text-slate-400 font-normal">↺ Switch</span>
+              </button>
               <span>•</span>
               <span>{currentGame?.date}</span>
             </div>
@@ -541,14 +549,25 @@ export default function InningTracker({
         {viewMode === 'fielding' && renderColumn('fielding', !isAway)}
       </div>
 
-      {/* Finish Game Action */}
-      <div class="pt-2">
+      {/* Finish or Discard Game Actions */}
+      <div class="pt-2 space-y-2">
         <button
           onClick={onFinishGame}
           class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-400 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition text-sm shadow-md"
         >
           <CheckCircle class="w-4 h-4" />
           <span>Save & Complete Game to Season History</span>
+        </button>
+
+        <button
+          onClick={() => {
+            if (window.confirm('Discard this live game without saving? (Your recorded season history will not be affected).')) {
+              setCurrentGame(null);
+            }
+          }}
+          class="w-full py-2 text-xs font-semibold text-slate-500 hover:text-red-400 transition text-center"
+        >
+          Discard / Cancel Current Game
         </button>
       </div>
 
@@ -640,14 +659,14 @@ export default function InningTracker({
                   <span class="text-xs text-slate-400">Game-day lineup setup</span>
                 </div>
               </div>
-              {currentGame && (
-                <button
-                  onClick={() => setShowNewGameModal(false)}
-                  class="p-1 rounded-lg text-slate-400 hover:text-white"
-                >
-                  <X class="w-5 h-5" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowNewGameModal(false)}
+                class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition"
+                title="Cancel / Close"
+              >
+                <X class="w-5 h-5" />
+              </button>
             </div>
 
             {/* Game Name */}
@@ -750,15 +769,24 @@ export default function InningTracker({
               </div>
             </div>
 
-            {/* Generate Button */}
-            <button
-              onClick={handleCreateNewGame}
-              disabled={setupAttendance.length === 0}
-              class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition text-sm"
-            >
-              <Sparkles class="w-4 h-4 text-amber-300" />
-              <span>Generate 4-Inning Fair Lineup</span>
-            </button>
+            {/* Actions: Cancel & Generate */}
+            <div class="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowNewGameModal(false)}
+                class="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl transition text-sm text-center"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateNewGame}
+                disabled={setupAttendance.length === 0}
+                class="flex-[2] py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition text-sm"
+              >
+                <Sparkles class="w-4 h-4 text-amber-300" />
+                <span>Generate Lineup</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
