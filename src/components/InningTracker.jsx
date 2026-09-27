@@ -168,8 +168,8 @@ export default function InningTracker({
   const handleAddInning = () => {
     const nextNum = totalInnings + 1;
     const baseStats = calculateSeasonStats(players, games, currentGame);
-    const newFielding = assignFairInning(fieldingPositions, attendingPlayers, baseStats, currentGame.innings);
-    const newBatting = assignFairInning(battingSlots, attendingPlayers, baseStats, currentGame.innings);
+    const newFielding = assignFairInning(fieldingPositions, attendingPlayers, baseStats, currentGame.innings, nextNum);
+    const newBatting = assignFairInning(battingSlots, attendingPlayers, baseStats, currentGame.innings, nextNum);
 
     const newInning = {
       inning: nextNum,
@@ -206,8 +206,8 @@ export default function InningTracker({
     if (window.confirm(`Re-shuffle suggestions for Inning ${activeInningNum}?`)) {
       const earlierInnings = currentGame.innings.slice(0, currentInningIndex);
       const baseStats = calculateSeasonStats(players, games, { ...currentGame, innings: earlierInnings });
-      const newFielding = assignFairInning(fieldingPositions, attendingPlayers, baseStats, earlierInnings);
-      const newBatting = assignFairInning(battingSlots, attendingPlayers, baseStats, earlierInnings);
+      const newFielding = assignFairInning(fieldingPositions, attendingPlayers, baseStats, earlierInnings, activeInningNum);
+      const newBatting = assignFairInning(battingSlots, attendingPlayers, baseStats, earlierInnings, activeInningNum);
 
       const updated = [...currentGame.innings];
       updated[currentInningIndex] = {
@@ -224,7 +224,7 @@ export default function InningTracker({
     const earlierInnings = currentGame.innings.slice(0, currentInningIndex);
     const baseStats = calculateSeasonStats(players, games, { ...currentGame, innings: earlierInnings });
     const positionsList = isBatting ? battingSlots : fieldingPositions;
-    const suggestionMap = assignFairInning(positionsList, attendingPlayers, baseStats, earlierInnings);
+    const suggestionMap = assignFairInning(positionsList, attendingPlayers, baseStats, earlierInnings, activeInningNum);
     return suggestionMap[posKey];
   };
 

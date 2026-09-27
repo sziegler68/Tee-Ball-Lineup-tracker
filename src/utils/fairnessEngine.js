@@ -147,62 +147,135 @@ export function calculateSeasonStats(allPlayers, games = [], currentGame = null)
 }
 
 /**
- * Generates an optimal assignment for a set of positions (fielding or batting) for a single inning.
- * Balances:
- * 1. Prior season history (zero-turns get highest priority)
- * 2. Avoids repeating a position that the player already played in the current game
+ * Kuhn-Munkres (Hungarian) Minimum-Cost Bipartite Matching
+ * Solves the global assignment problem in O(N^3) time (~0.1ms for N <= 10).
+ * Finds the global assignment of all players to all positions that minimizes the sum of costs,
+ * eliminating greedy starvation and alphabetical bias.
  */
-export function assignFairInning(positionsList, attendingPlayers, seasonStats, gameHistoryList) {
-  const assigned = {};
-  const usedPlayerIds = new Set();
+function minCostMatching(costMatrix) {
+  const n = costMatrix.length;
+  const m = costMatrix[0].length;
+  const u = new Array(n + 1).fill(0);
+  const v = new Array(m + 1).fill(0);
+  const p = new Array(m + 1).fill(0);
+  const way = new Array(m + 1).fill(0);
 
-  positionsList.forEach((pos) => {
-    const posKey = pos.key;
+  for (let i = 1; i <= n; i++) {
+    p[0] = i;
+    let j0 = 0;
+    const minv = new Array(m + 1).fill(Infinity);
+    const used = new Array(m + 1).fill(false);
 
-    // Sort available candidates
-    const candidates = attendingPlayers
-      .filter((p) => !usedPlayerIds.has(p.id))
-      .sort((a, b) => {
-        const statsA = seasonStats[a.id] || {};
-        const statsB = seasonStats[b.id] || {};
+    do {
+      used[j0] = true;
+      const i0 = p[j0];
+      let delta = Infinity;
+      let j1 = 0;
 
-        // 1. Did player play this exact position in earlier innings of this current game? (penalty)
-        const timesInThisGameA = gameHistoryList.filter((inn) => inn[posKey] === a.id).length;
-        const timesInThisGameB = gameHistoryList.filter((inn) => inn[posKey] === b.id).length;
-        if (timesInThisGameA !== timesInThisGameB) {
-          return timesInThisGameA - timesInThisGameB;
+      for (let j = 1; j <= m; j++) {
+        if (!used[j]) {
+          const cur = costMatrix[i0 - 1][j - 1] - u[i0] - v[j];
+          if (cur < minv[j]) {
+            minv[j] = cur;
+            way[j] = j0;
+          }
+          if (minv[j] < delta) {
+            delta = minv[j];
+            j1 = j;
+          }
         }
+      }
 
-        // 2. Season-wide turn count for this position (0 turns first!)
-        const isBatting = posKey.startsWith('bat');
-        const seasonCountA = isBatting
-          ? (statsA.batting?.[posKey] || 0)
-          : (statsA.fielding?.[posKey] || 0);
-        const seasonCountB = isBatting
-          ? (statsB.batting?.[posKey] || 0)
-          : (statsB.fielding?.[posKey] || 0);
-
-        if (seasonCountA !== seasonCountB) {
-          return seasonCountA - seasonCountB;
+      for (let j = 0; j <= m; j++) {
+        if (used[j]) {
+          u[p[j]] += delta;
+          v[j] -= delta;
+        } else {
+          minv[j] -= delta;
         }
+      }
+      j0 = j1;
+    } while (p[j0] !== 0);
 
-        // 3. Total turns across all positions (balance overall play)
-        const totalA = isBatting ? (statsA.totalBatting || 0) : (statsA.totalFielding || 0);
-        const totalB = isBatting ? (statsB.totalBatting || 0) : (statsB.totalFielding || 0);
-        if (totalA !== totalB) {
-          return totalA - totalB;
-        }
+    do {
+      const j1 = way[j0];
+      p[j0] = p[j1];
+      j0 = j1;
+    } while (j0 !== 0);
+  }
 
-        return a.name.localeCompare(b.name);
-      });
-
-    if (candidates.length > 0) {
-      assigned[posKey] = candidates[0].id;
-      usedPlayerIds.add(candidates[0].id);
-    } else {
-      assigned[posKey] = '';
+  const result = new Array(n);
+  for (let j = 1; j <= m; j++) {
+    if (p[j] > 0) {
+      result[p[j] - 1] = j - 1;
     }
-  });
+  }
+  return result;
+}
+
+/**
+ * Assigns all positions/slots for an inning using global Minimum-Cost Matching.
+ * Balances:
+ * 1. Prior season history (0 turns get highest priority)
+ * 2. Strict penalty against repeating any position already played in this game
+ * 3. Inning-based rotation offset to eliminate any alphabetical tie-breaker bias
+ */
+export function assignFairInning(positionsList, attendingPlayers, seasonStats, gameHistoryList, inningNum = 1) {
+  if (!positionsList || positionsList.length === 0 || !attendingPlayers || attendingPlayers.length === 0) {
+    return {};
+  }
+
+  const numPlayers = attendingPlayers.length;
+  const numPositions = positionsList.length;
+
+  // Build Cost Matrix: rows = players, cols = positions
+  const costMatrix = [];
+
+  for (let i = 0; i < numPlayers; i++) {
+    const player = attendingPlayers[i];
+    const statsP = seasonStats[player.id] || {};
+    const row = [];
+
+    for (let j = 0; j < numPositions; j++) {
+      const pos = positionsList[j];
+      const posKey = pos.key;
+      const isBatting = posKey.startsWith('bat');
+
+      // 1. Season-wide turn count for this position
+      const seasonCount = isBatting
+        ? (statsP.batting?.[posKey] || 0)
+        : (statsP.fielding?.[posKey] || 0);
+
+      // 2. Penalty for having played this position in earlier innings of current game
+      const timesInThisGame = (gameHistoryList || []).filter((inn) => inn[posKey] === player.id).length;
+
+      // 3. Overall turn balance
+      const totalTurns = isBatting ? (statsP.totalBatting || 0) : (statsP.totalFielding || 0);
+
+      // 4. Deterministic rotation tie-breaker (zero alphabetical bias!)
+      const rotationFactor = (i * 7 + j * 13 + (inningNum || 1) * 11) % 37;
+
+      const cost =
+        seasonCount * 10000 +
+        timesInThisGame * 50000 +
+        totalTurns * 100 +
+        rotationFactor;
+
+      row.push(cost);
+    }
+    costMatrix.push(row);
+  }
+
+  // Solve global matching
+  const matching = minCostMatching(costMatrix);
+
+  const assigned = {};
+  for (let i = 0; i < numPlayers; i++) {
+    const posIdx = matching[i];
+    if (posIdx !== undefined && posIdx < numPositions) {
+      assigned[positionsList[posIdx].key] = attendingPlayers[i].id;
+    }
+  }
 
   return assigned;
 }
@@ -242,7 +315,8 @@ export function generateFullGame({
       fieldingPositions,
       attending,
       simulatedStats,
-      generatedInnings
+      generatedInnings,
+      innNum
     );
     Object.assign(inningObj, fieldingAssignments);
 
@@ -251,7 +325,8 @@ export function generateFullGame({
       battingSlots,
       attending,
       simulatedStats,
-      generatedInnings
+      generatedInnings,
+      innNum
     );
     Object.assign(inningObj, battingAssignments);
 
@@ -325,7 +400,8 @@ export function updateIncompleteInnings({
         fieldingPositions,
         attending,
         baseStats,
-        updatedInnings
+        updatedInnings,
+        idx + 1
       );
       // Clean old fielding keys that may no longer be active
       FIELDING_POSITIONS.forEach((pos) => {
@@ -358,7 +434,8 @@ export function updateIncompleteInnings({
         battingSlots,
         attending,
         baseStats,
-        updatedInnings
+        updatedInnings,
+        idx + 1
       );
       // Clean old batting keys
       for (let i = 1; i <= MAX_PLAYERS; i++) {
