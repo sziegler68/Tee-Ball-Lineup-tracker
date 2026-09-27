@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
-import { PlusCircle, Trash2, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
-import { getEnabledPositions } from '../utils/fairnessEngine';
+import { PlusCircle, Trash2, Calendar, ChevronDown, ChevronUp, Shield, Swords } from 'lucide-react';
+import { FIELDING_POSITIONS, getBattingSlots, getActiveFieldingPositions } from '../utils/fairnessEngine';
 
 const EMPTY_INNING = (num) => ({
   inning: num,
 });
 
-export default function HistoryLogger({ players, games, setGames, enabledPositions }) {
-  const positions = getEnabledPositions(enabledPositions || []);
+export default function HistoryLogger({ players, games, setGames }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [gameName, setGameName] = useState(`Game ${games.length + 1}`);
   const [gameDate, setGameDate] = useState(new Date().toISOString().slice(0, 10));
-  
+
+  // Attendance tracking for past games - default all players present
+  const [pastAttendance, setPastAttendance] = useState(() => players.map((p) => p.id));
+
   // Start with 4 innings by default, but allow add/remove
   const [innings, setInnings] = useState([
     EMPTY_INNING(1),
@@ -20,10 +22,10 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
     EMPTY_INNING(4),
   ]);
 
-  // Attendance tracking for past games - default all players present
-  const [pastAttendance, setPastAttendance] = useState(() => players.map((p) => p.id));
-
   const [expandedGameId, setExpandedGameId] = useState(null);
+
+  const activeFielding = getActiveFieldingPositions(pastAttendance.length || players.length);
+  const activeBatting = getBattingSlots(pastAttendance.length || players.length);
 
   const handleInningChange = (inningIdx, field, value) => {
     const updated = [...innings];
@@ -75,23 +77,28 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
 
   const getPlayerName = (id) => {
     const p = players.find((pl) => pl.id === id);
-    return p ? p.name : '-';
+    return p ? p.name : '—';
   };
 
   return (
-    <div class="max-w-2xl mx-auto p-4 space-y-6">
+    <div class="max-w-2xl mx-auto p-3 sm:p-4 space-y-4">
       {/* Top Banner */}
       <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 flex items-center justify-between shadow-lg">
         <div>
-          <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <h2 class="text-lg font-black text-white flex items-center gap-2">
             Past Games History
           </h2>
           <p class="text-xs text-slate-400 mt-0.5">
-            Log previous games so their position turns count towards season fairness.
+            Log earlier games so player turns count towards season fairness.
           </p>
         </div>
         <button
-          onClick={() => setShowAddForm(!showAddForm)}
+          onClick={() => {
+            if (!showAddForm) {
+              setPastAttendance(players.map((p) => p.id));
+            }
+            setShowAddForm(!showAddForm);
+          }}
           class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 active:scale-95 transition"
         >
           <PlusCircle class="w-4 h-4" />
@@ -113,7 +120,7 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
                 type="text"
                 value={gameName}
                 onChange={(e) => setGameName(e.target.value)}
-                class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-bold"
                 required
               />
             </div>
@@ -151,7 +158,7 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
                 </button>
               </div>
             </div>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap gap-1.5">
               {players.map((p) => {
                 const present = pastAttendance.includes(p.id);
                 return (
@@ -159,9 +166,9 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
                     key={p.id}
                     type="button"
                     onClick={() => handleTogglePastAttendance(p.id)}
-                    class={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                    class={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
                       present
-                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-bold'
                         : 'bg-slate-800 border-slate-700 text-slate-500 line-through'
                     }`}
                   >
@@ -172,33 +179,68 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
             </div>
           </div>
 
-          <div class="space-y-4 pt-2">
+          {/* Innings Entries */}
+          <div class="space-y-4 pt-1">
             {innings.map((inn, idx) => (
-              <div key={idx} class="bg-slate-900/70 border border-slate-700/80 rounded-xl p-3 space-y-2">
+              <div key={idx} class="bg-slate-900/70 border border-slate-700/80 rounded-xl p-3 space-y-3">
                 <span class="text-xs font-bold text-amber-400 uppercase tracking-wider block">
                   Inning {idx + 1}
                 </span>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {positions.map(({ key, label, icon }) => (
-                    <div key={key} class="flex items-center justify-between bg-slate-800 p-2 rounded-lg border border-slate-700/60">
-                      <span class="text-xs text-slate-300 font-medium flex items-center gap-1">
-                        <span>{icon}</span> {label}
-                      </span>
-                      <select
-                        value={inn[key]}
-                        onChange={(e) => handleInningChange(idx, key, e.target.value)}
-                        class="bg-slate-900 text-white text-xs border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-emerald-500"
-                      >
-                        <option value="">-- Select --</option>
-                        {players.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
+                {/* Fielding Positions */}
+                <div class="space-y-1.5">
+                  <span class="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                    <Shield class="w-3 h-3 text-sky-400" /> Fielding Positions
+                  </span>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {activeFielding.map((pos) => (
+                      <div key={pos.key} class="flex items-center justify-between bg-slate-800 p-1.5 rounded-lg border border-slate-700/60">
+                        <span class="text-xs text-slate-300 font-medium">
+                          {pos.short} ({pos.label})
+                        </span>
+                        <select
+                          value={inn[pos.key] || (pos.key === 'pitcher' ? inn.pitcher1 || '' : '')}
+                          onChange={(e) => handleInningChange(idx, pos.key, e.target.value)}
+                          class="bg-slate-900 text-white text-xs border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-emerald-500 max-w-[120px]"
+                        >
+                          <option value="">-- Player --</option>
+                          {players.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Batting Lineup */}
+                <div class="space-y-1.5 pt-1 border-t border-slate-800">
+                  <span class="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                    <Swords class="w-3 h-3 text-emerald-400" /> Batting Order
+                  </span>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {activeBatting.map((slot) => (
+                      <div key={slot.key} class="flex items-center justify-between bg-slate-800 p-1.5 rounded-lg border border-slate-700/60">
+                        <span class="text-xs text-slate-300 font-medium">
+                          {slot.short} ({slot.label})
+                        </span>
+                        <select
+                          value={inn[slot.key] || ''}
+                          onChange={(e) => handleInningChange(idx, slot.key, e.target.value)}
+                          class="bg-slate-900 text-white text-xs border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-emerald-500 max-w-[120px]"
+                        >
+                          <option value="">-- Player --</option>
+                          {players.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ))}
@@ -246,9 +288,9 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
             const isExpanded = expandedGameId === g.id;
             return (
               <div key={g.id} class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden shadow-lg">
-                <div class="p-4 flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <Calendar class="w-5 h-5 text-emerald-400" />
+                <div class="p-3 sm:p-4 flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <Calendar class="w-5 h-5 text-emerald-400 flex-shrink-0" />
                     <div>
                       <h3 class="font-bold text-white text-sm">{g.name}</h3>
                       <span class="text-xs text-slate-400">
@@ -277,10 +319,10 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
 
                 {/* Expanded Details */}
                 {isExpanded && (
-                  <div class="border-t border-slate-700 bg-slate-900/60 p-4 space-y-3 text-xs">
+                  <div class="border-t border-slate-700 bg-slate-900/60 p-3 sm:p-4 space-y-3 text-xs">
                     {/* Attendance */}
                     {g.attendance && (
-                      <div class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/60 space-y-1.5">
+                      <div class="bg-slate-800/80 rounded-xl p-2.5 border border-slate-700/60 space-y-1.5">
                         <span class="font-bold text-emerald-400">
                           Attendance ({g.attendance.length}/{players.length})
                         </span>
@@ -304,19 +346,66 @@ export default function HistoryLogger({ players, games, setGames, enabledPositio
                       </div>
                     )}
 
-                    {(g.innings || []).map((inn, idx) => (
-                      <div key={idx} class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/60 space-y-1.5">
-                        <span class="font-bold text-amber-400">Inning {idx + 1}</span>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-slate-300">
-                          {positions.map(({ key, label, icon }) => (
-                            <div key={key} class="bg-slate-900/80 px-2 py-1 rounded border border-slate-700/40">
-                              <span class="text-slate-400">{icon} {label}:</span>{' '}
-                              <span class="font-semibold text-white">{getPlayerName(inn[key])}</span>
+                    {(g.innings || []).map((inn, idx) => {
+                      // Check for new vs legacy keys
+                      const isLegacy = inn.firstBat || inn.pitcher1;
+
+                      return (
+                        <div key={idx} class="bg-slate-800/80 rounded-xl p-3 border border-slate-700/60 space-y-2">
+                          <span class="font-bold text-amber-400 block">Inning {idx + 1}</span>
+
+                          {/* Fielding */}
+                          <div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                              Fielding Positions
+                            </span>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-slate-300">
+                              {FIELDING_POSITIONS.filter((pos) => inn[pos.key] || (pos.key === 'pitcher' && inn.pitcher1)).map((pos) => {
+                                const pid = inn[pos.key] || (pos.key === 'pitcher' ? inn.pitcher1 : '');
+                                return (
+                                  <div key={pos.key} class="bg-slate-900/80 px-2 py-1 rounded border border-slate-700/40">
+                                    <span class="text-slate-400 font-bold">{pos.short}:</span>{' '}
+                                    <span class="font-semibold text-white">{getPlayerName(pid)}</span>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          ))}
+                          </div>
+
+                          {/* Batting */}
+                          <div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                              Batting Order
+                            </span>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-slate-300">
+                              {isLegacy ? (
+                                <>
+                                  {inn.firstBat && (
+                                    <div class="bg-slate-900/80 px-2 py-1 rounded border border-slate-700/40">
+                                      <span class="text-slate-400 font-bold">1st:</span>{' '}
+                                      <span class="font-semibold text-white">{getPlayerName(inn.firstBat)}</span>
+                                    </div>
+                                  )}
+                                  {inn.lastBat && (
+                                    <div class="bg-slate-900/80 px-2 py-1 rounded border border-slate-700/40">
+                                      <span class="text-slate-400 font-bold">Last:</span>{' '}
+                                      <span class="font-semibold text-white">{getPlayerName(inn.lastBat)}</span>
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                getBattingSlots(10).filter((s) => inn[s.key]).map((slot) => (
+                                  <div key={slot.key} class="bg-slate-900/80 px-2 py-1 rounded border border-slate-700/40">
+                                    <span class="text-slate-400 font-bold">{slot.short}:</span>{' '}
+                                    <span class="font-semibold text-white">{getPlayerName(inn[slot.key])}</span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
