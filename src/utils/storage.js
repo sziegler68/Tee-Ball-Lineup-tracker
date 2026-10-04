@@ -196,7 +196,20 @@ export function exportBackup(state) {
 
 export function parseBackupText(jsonText) {
   try {
-    const parsed = JSON.parse(jsonText);
+    if (!jsonText || typeof jsonText !== 'string') {
+      throw new Error('Please provide backup text.');
+    }
+
+    // Strip markdown code fences (e.g. ```json ... ```) if copied from chat
+    let cleaned = jsonText.trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    // Replace smart/curly quotes that mobile devices sometimes insert
+    cleaned = cleaned.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
+
+    const parsed = JSON.parse(cleaned);
 
     // v4 multi-team format
     if (parsed.teams && parsed.activeTeamId) {
