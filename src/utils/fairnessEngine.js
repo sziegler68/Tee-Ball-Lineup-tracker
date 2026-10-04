@@ -102,31 +102,43 @@ export function calculateSeasonStats(allPlayers, games = [], currentGame = null)
     };
   });
 
-  const countInning = (inn) => {
+  const countInning = (inn, game) => {
     if (!inn) return;
 
-    // Fielding counts
-    FIELDING_POSITIONS.forEach((pos) => {
+    // Use attendance count if available to ignore ghost slots
+    const attendanceCount = (game && game.attendance && Array.isArray(game.attendance))
+      ? game.attendance.length
+      : MAX_PLAYERS;
+
+    // Guard sets so no player is counted twice for the same inning
+    const countedBatters = new Set();
+    const countedFielders = new Set();
+
+    // Fielding counts (only up to attendanceCount positions)
+    const activeFielding = FIELDING_POSITIONS.slice(0, attendanceCount);
+    activeFielding.forEach((pos) => {
       let pid = inn[pos.key];
       // Legacy mapping: pitcher1 -> pitcher
       if (!pid && pos.key === 'pitcher' && inn.pitcher1) {
         pid = inn.pitcher1;
       }
-      if (pid && stats[pid]) {
+      if (pid && stats[pid] && !countedFielders.has(pid)) {
+        countedFielders.add(pid);
         stats[pid].fielding[pos.key] = (stats[pid].fielding[pos.key] || 0) + 1;
         stats[pid].totalFielding += 1;
       }
     });
 
-    // Batting counts
-    for (let i = 1; i <= MAX_PLAYERS; i++) {
+    // Batting counts (only up to attendanceCount slots)
+    for (let i = 1; i <= attendanceCount; i++) {
       const slotKey = `bat${i}`;
       let pid = inn[slotKey];
       // Legacy mapping
       if (!pid && i === 1 && inn.firstBat) pid = inn.firstBat;
       if (!pid && i === 4 && inn.lastBat) pid = inn.lastBat; // legacy default lastBat was slot 4
 
-      if (pid && stats[pid]) {
+      if (pid && stats[pid] && !countedBatters.has(pid)) {
+        countedBatters.add(pid);
         stats[pid].batting[slotKey] = (stats[pid].batting[slotKey] || 0) + 1;
         stats[pid].totalBatting += 1;
       }
@@ -135,12 +147,12 @@ export function calculateSeasonStats(allPlayers, games = [], currentGame = null)
 
   // Tally completed past games
   (games || []).forEach((g) => {
-    (g.innings || []).forEach(countInning);
+    (g.innings || []).forEach((inn) => countInning(inn, g));
   });
 
   // Tally current live game
   if (currentGame && currentGame.innings) {
-    currentGame.innings.forEach(countInning);
+    currentGame.innings.forEach((inn) => countInning(inn, currentGame));
   }
 
   return stats;
@@ -385,8 +397,11 @@ export function updateIncompleteInnings({
   currentGame.innings.forEach((inn, idx) => {
     const updatedInn = { ...inn };
 
-    // If fielding is already complete, keep it and count it
+    // If fielding is already complete, keep it and clean any slots beyond active count
     if (inn.fieldingComplete) {
+      FIELDING_POSITIONS.slice(activeCount).forEach((pos) => {
+        delete updatedInn[pos.key];
+      });
       fieldingPositions.forEach((pos) => {
         const pid = inn[pos.key];
         if (pid && baseStats[pid]) {
@@ -419,8 +434,11 @@ export function updateIncompleteInnings({
       });
     }
 
-    // If batting is already complete, keep it and count it
+    // If batting is already complete, keep it and clean any slots beyond active count
     if (inn.battingComplete) {
+      for (let i = activeCount + 1; i <= MAX_PLAYERS; i++) {
+        delete updatedInn[`bat${i}`];
+      }
       battingSlots.forEach((slot) => {
         const pid = inn[slot.key];
         if (pid && baseStats[pid]) {
@@ -485,11 +503,21 @@ export function swapPlayerInInning({
 
   // Find if newPlayerId is already occupying another position in this inning
   let existingKeyForNewPlayer = null;
-  positionsList.forEach((pos) => {
-    if (pos.key !== targetKey && updatedInn[pos.key] === newPlayerId) {
-      existingKeyForNewPlayer = pos.key;
+  if (isBatting) {
+    for (let i = 1; i <= MAX_PLAYERS; i++) {
+      const k = `bat${i}`;
+      if (k !== targetKey && updatedInn[k] === newPlayerId) {
+        existingKeyForNewPlayer = k;
+        break;
+      }
     }
-  });
+  } else {
+    FIELDING_POSITIONS.forEach((pos) => {
+      if (pos.key !== targetKey && updatedInn[pos.key] === newPlayerId) {
+        existingKeyForNewPlayer = pos.key;
+      }
+    });
+  }
 
   // Assign new player to target
   updatedInn[targetKey] = newPlayerId;

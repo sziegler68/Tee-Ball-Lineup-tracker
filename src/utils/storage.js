@@ -1,6 +1,49 @@
-import { getDefaultEnabledKeys } from './fairnessEngine';
+import { getDefaultEnabledKeys, FIELDING_POSITIONS } from './fairnessEngine';
 
 const STORAGE_KEY = 'teeball_lineup_tracker_v4';
+
+/**
+ * Sanitizes game innings by removing ghost batting slots / fielding positions beyond
+ * the game's actual attendance count, and removing duplicate batters in the same inning.
+ */
+export function sanitizeGameInnings(game) {
+  if (!game || !game.innings || !Array.isArray(game.innings)) return game;
+  const attendanceCount = (game.attendance && Array.isArray(game.attendance))
+    ? game.attendance.length
+    : null;
+
+  if (!attendanceCount) return game;
+
+  game.innings.forEach((inn) => {
+    // 1. Delete orphan batting slots beyond attendance count
+    for (let i = attendanceCount + 1; i <= 10; i++) {
+      delete inn[`bat${i}`];
+    }
+
+    // 2. Clear duplicate batter in same inning
+    const seenBatters = new Set();
+    for (let i = 1; i <= attendanceCount; i++) {
+      const key = `bat${i}`;
+      const pid = inn[key];
+      if (pid) {
+        if (seenBatters.has(pid)) {
+          delete inn[key];
+        } else {
+          seenBatters.add(pid);
+        }
+      }
+    }
+
+    // 3. Delete orphan fielding positions beyond attendance count
+    if (FIELDING_POSITIONS && Array.isArray(FIELDING_POSITIONS)) {
+      FIELDING_POSITIONS.slice(attendanceCount).forEach((pos) => {
+        delete inn[pos.key];
+      });
+    }
+  });
+
+  return game;
+}
 
 const DEFAULT_TEAM = {
   teamName: 'My Tee-Ball Team',
@@ -77,12 +120,18 @@ export function loadState() {
     if (!parsed.teams || !parsed.activeTeamId) {
       return createDefaultAppState();
     }
-    // Sort players and ensure enabledPositions exists in each team
+    // Sort players, ensure enabledPositions, and sanitize all games
     for (const teamId of Object.keys(parsed.teams)) {
       const team = parsed.teams[teamId];
       team.players = sortPlayersAlphabetically(team.players || []);
       if (!team.enabledPositions) {
         team.enabledPositions = getDefaultEnabledKeys();
+      }
+      if (Array.isArray(team.games)) {
+        team.games.forEach(sanitizeGameInnings);
+      }
+      if (team.currentGame) {
+        sanitizeGameInnings(team.currentGame);
       }
     }
     return parsed;
@@ -151,10 +200,16 @@ export function parseBackupText(jsonText) {
 
     // v4 multi-team format
     if (parsed.teams && parsed.activeTeamId) {
-      // Ensure each team has enabledPositions
+      // Ensure each team has enabledPositions and sanitize games
       for (const teamId of Object.keys(parsed.teams)) {
         if (!parsed.teams[teamId].enabledPositions) {
           parsed.teams[teamId].enabledPositions = getDefaultEnabledKeys();
+        }
+        if (Array.isArray(parsed.teams[teamId].games)) {
+          parsed.teams[teamId].games.forEach(sanitizeGameInnings);
+        }
+        if (parsed.teams[teamId].currentGame) {
+          sanitizeGameInnings(parsed.teams[teamId].currentGame);
         }
       }
       return parsed;
